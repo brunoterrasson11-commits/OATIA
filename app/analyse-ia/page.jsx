@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BrainCircuit, Play, Download, Copy, CheckCheck, Loader2,
   BarChart2, AlertTriangle, TrendingUp, FileText, RefreshCw,
-  Sparkles, Eye, Pencil, Trash2, Save, X
+  Sparkles, Eye, Pencil, Trash2, Save, X, ChevronDown
 } from 'lucide-react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip
@@ -58,18 +58,37 @@ function downloadReportFile(report) {
 }
 
 export default function AnalyseIAPage() {
-  const [selectedDept, setSelectedDept] = useState('33');
-  const [analysisType, setAnalysisType] = useState('diagnostic');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedDept, setSelectedDept]     = useState('33');
+  const [analysisType, setAnalysisType]     = useState('diagnostic');
+  const [loading, setLoading]               = useState(false);
+  const [result, setResult]                 = useState(null);
+  const [error, setError]                   = useState(null);
+  const [copied, setCopied]                 = useState(false);
 
   // Modal d'édition
-  const [editModal, setEditModal] = useState(null);
-  const [editContent, setEditContent] = useState({ titre: '', contenu: '' });
+  const [editModal, setEditModal]         = useState(null);
+  const [editContent, setEditContent]     = useState({ titre: '', contenu: '' });
 
   const { reports: savedReports, saveReport, deleteReport, updateReport } = useReports();
+
+  // ── Régions et départements filtrés ──────────────────────────────────────
+  const regions = useMemo(() =>
+    [...new Set(Object.values(indicateurs).map(i => i.region))].sort(), []);
+
+  const filteredDepts = useMemo(() =>
+    selectedRegion
+      ? Object.entries(indicateurs).filter(([, ind]) => ind.region === selectedRegion)
+      : Object.entries(indicateurs),
+    [selectedRegion]);
+
+  // Réinitialiser le département sélectionné quand la région change
+  useEffect(() => {
+    if (filteredDepts.length > 0 && !filteredDepts.find(([code]) => code === selectedDept)) {
+      setSelectedDept(filteredDepts[0][0]);
+      setResult(null);
+    }
+  }, [selectedRegion]);
 
   const territoire = indicateurs[selectedDept];
   const etabsDuDept = etablissements.filter(e => e.code_departement === selectedDept);
@@ -246,16 +265,54 @@ export default function AnalyseIAPage() {
         <div className="space-y-4">
           {/* Sélecteur territoire */}
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-5">
-            <h2 className="text-white font-semibold text-sm mb-3">1. Sélectionner le territoire</h2>
-            <select
-              value={selectedDept}
-              onChange={e => { setSelectedDept(e.target.value); setResult(null); }}
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-green-500"
-            >
-              {Object.entries(indicateurs).map(([code, ind]) => (
-                <option key={code} value={code}>{ind.nom} ({ind.region})</option>
-              ))}
-            </select>
+            <h2 className="text-white font-semibold text-sm mb-4">1. Sélectionner le territoire</h2>
+
+            {/* Étape 1 : Région */}
+            <div className="mb-2">
+              <label className="text-slate-400 text-xs mb-1.5 flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-600/30 text-green-400 text-[10px] font-bold">1</span>
+                Région
+              </label>
+              <select
+                value={selectedRegion}
+                onChange={e => setSelectedRegion(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
+              >
+                <option value="">— Toutes les régions —</option>
+                {regions.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              {selectedRegion && (
+                <p className="text-slate-600 text-xs mt-1">
+                  {filteredDepts.length} département{filteredDepts.length > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+
+            {/* Séparateur flèche */}
+            <div className="flex items-center gap-2 my-3">
+              <div className="flex-1 h-px bg-slate-700/60" />
+              <ChevronDown className="w-3 h-3 text-slate-600" />
+              <div className="flex-1 h-px bg-slate-700/60" />
+            </div>
+
+            {/* Étape 2 : Département */}
+            <div className="mb-3">
+              <label className="text-slate-400 text-xs mb-1.5 flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-600/30 text-green-400 text-[10px] font-bold">2</span>
+                Département
+              </label>
+              <select
+                value={selectedDept}
+                onChange={e => { setSelectedDept(e.target.value); setResult(null); }}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
+              >
+                {filteredDepts.map(([code, ind]) => (
+                  <option key={code} value={code}>{ind.nom} ({code})</option>
+                ))}
+              </select>
+            </div>
 
             {territoire && (
               <div className="mt-4 space-y-2">

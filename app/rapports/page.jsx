@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   FileText, Download, Printer, Loader2, CheckCircle2,
   Calendar, MapPin, Building2, Sparkles, Eye, Pencil, Trash2, Save, X,
@@ -42,13 +42,7 @@ const statutColors = {
 };
 
 // Rapports manuels initiaux
-const rapportsMockInitial = [
-  { id: 'm1', titre: 'Rapport territorial – Gironde',             type: 'régional',       territoire: 'Gironde',                 date: '20/02/2026', statut: 'validé',   source: 'manual', contenu: null },
-  { id: 'm2', titre: 'Diagnostic EPLEFPA Bordeaux-Blanquefort',   type: 'établissement',  territoire: 'Bordeaux-Blanquefort',    date: '18/02/2026', statut: 'publié',   source: 'manual', contenu: null },
-  { id: 'm3', titre: 'Bilan formations Occitanie 2025',           type: 'régional',       territoire: 'Occitanie',               date: '15/02/2026', statut: 'brouillon',source: 'manual', contenu: null },
-  { id: 'm4', titre: 'Rapport national enseignement agricole 2025', type: 'national',     territoire: 'France',                  date: '10/02/2026', statut: 'publié',   source: 'manual', contenu: null },
-  { id: 'm5', titre: 'Analyse MFR Périgueux-Antonne',             type: 'établissement',  territoire: 'Dordogne',                date: '05/02/2026', statut: 'validé',   source: 'manual', contenu: null },
-];
+const rapportsMockInitial = [];
 
 // ─── Constructeur de prompt ──────────────────────────────────────────────────
 function buildRapportPrompt(reportType, selectedDept, selectedEtab) {
@@ -191,23 +185,59 @@ function renderContent(contenu) {
 
 // ─── Page principale ─────────────────────────────────────────────────────────
 export default function RapportsPage() {
-  const [reportType, setReportType]     = useState('etablissement');
-  const [selectedDept, setSelectedDept] = useState('33');
-  const [selectedEtab, setSelectedEtab] = useState(etablissements[0]);
-  const [generating, setGenerating]     = useState(false);
-  const [error, setError]               = useState(null);
+  const [reportType, setReportType]         = useState('etablissement');
+  const [selectedDept, setSelectedDept]     = useState('33');
+  const [selectedEtab, setSelectedEtab]     = useState(etablissements[0]);
+  const [selectedEtabRegion, setSelectedEtabRegion] = useState('');
+  const [selectedDeptRegion, setSelectedDeptRegion] = useState('');
+  const [generating, setGenerating]         = useState(false);
+  const [error, setError]                   = useState(null);
 
   // Rapports manuels en state pour permettre édition/suppression
   const [manualReports, setManualReports] = useState(rapportsMockInitial);
 
   // Rapports IA depuis localStorage (partagé avec Analyse IA)
-  const { reports: aiReports, deleteReport: deleteAiReport, updateReport: updateAiReport } = useReports();
+  const { reports: aiReports, saveReport, deleteReport: deleteAiReport, updateReport: updateAiReport } = useReports();
 
   // Modals
-  const [viewModal, setViewModal]   = useState(null);
-  const [editModal, setEditModal]   = useState(null);
-  const [editContent, setEditContent] = useState({ titre: '', contenu: '' });
+  const [viewModal, setViewModal]         = useState(null);
+  const [editModal, setEditModal]         = useState(null);
+  const [editContent, setEditContent]     = useState({ titre: '', contenu: '' });
   const [confirmDelete, setConfirmDelete] = useState(null);
+
+  // ── Régions disponibles ──────────────────────────────────────────────────
+  const etabRegions = useMemo(() =>
+    [...new Set(etablissements.map(e => e.region))].sort(), []);
+
+  const deptRegions = useMemo(() =>
+    [...new Set(Object.values(indicateurs).map(i => i.region))].sort(), []);
+
+  // ── Listes filtrées par région ───────────────────────────────────────────
+  const filteredEtabs = useMemo(() =>
+    selectedEtabRegion
+      ? etablissements.filter(e => e.region === selectedEtabRegion)
+      : etablissements,
+    [selectedEtabRegion]);
+
+  const filteredDepts = useMemo(() =>
+    selectedDeptRegion
+      ? Object.entries(indicateurs).filter(([, ind]) => ind.region === selectedDeptRegion)
+      : Object.entries(indicateurs),
+    [selectedDeptRegion]);
+
+  // Réinitialiser la sélection d'établissement quand la région change
+  useEffect(() => {
+    if (filteredEtabs.length > 0) {
+      setSelectedEtab(filteredEtabs[0]);
+    }
+  }, [selectedEtabRegion]);
+
+  // Réinitialiser la sélection de département quand la région change
+  useEffect(() => {
+    if (filteredDepts.length > 0) {
+      setSelectedDept(filteredDepts[0][0]);
+    }
+  }, [selectedDeptRegion]);
 
   // Liste unifiée (rapports IA en tête, puis manuels)
   const allReports = useMemo(() => {
@@ -257,14 +287,30 @@ export default function RapportsPage() {
         ? `Rapport régional – ${indicateurs[selectedDept]?.nom}`
         : 'Rapport national enseignement agricole 2025/2026';
 
-      // Ouvrir directement en modal de visualisation
-      setViewModal({
+      const territoire = reportType === 'etablissement'
+        ? selectedEtab?.departement
+        : reportType === 'regional'
+        ? indicateurs[selectedDept]?.nom
+        : 'France';
+
+      // ── Sauvegarde automatique dans la liste ─────────────────────────────
+      const savedReport = saveReport({
         id: data.id || Date.now(),
         titre,
+        type_label: reportType,
+        territoire,
+        contenu: data.contenu,
+        tokens_used: data.tokens_used,
+        date_generation: data.date_generation,
+        savedAt: new Date().toISOString(),
+      });
+
+      // Ouvrir en modal de visualisation
+      setViewModal({
+        id: savedReport.id,
+        titre,
         type: reportType,
-        territoire: reportType === 'etablissement' ? selectedEtab?.departement
-          : reportType === 'regional' ? indicateurs[selectedDept]?.nom
-          : 'France',
+        territoire,
         date: new Date().toLocaleDateString('fr-FR'),
         statut: 'généré',
         source: 'ai',
@@ -347,6 +393,9 @@ export default function RapportsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 text-xs text-green-300 bg-green-500/15 border border-green-500/30 px-2.5 py-1 rounded-lg">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Sauvegardé
+                </span>
                 <button
                   onClick={() => printReport(viewModal)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors"
@@ -481,47 +530,159 @@ export default function RapportsPage() {
             </div>
           </div>
 
-          {/* Paramètres */}
+          {/* Paramètres — sélection en cascade région → cible */}
           {reportType !== 'national' && (
-            <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-5 space-y-3">
+            <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-5 space-y-4">
               <h2 className="text-white font-semibold text-sm">Paramètres</h2>
+
+              {/* ── Établissement : région → établissement ── */}
               {reportType === 'etablissement' && (
-                <div>
-                  <label className="text-slate-400 text-xs mb-1.5 block">Établissement</label>
-                  <select
-                    value={selectedEtab?.id}
-                    onChange={e => setSelectedEtab(etablissements.find(et => et.id === parseInt(e.target.value)))}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
-                  >
-                    {etablissements.map(etab => (
-                      <option key={etab.id} value={etab.id}>{etab.nom}</option>
-                    ))}
-                  </select>
-                  {selectedEtab && (
-                    <div className="mt-2 text-xs text-slate-500 space-y-0.5">
-                      <div>Type : {selectedEtab.type} · {selectedEtab.statut}</div>
-                      <div>Effectifs : {selectedEtab.effectifs_total} apprenants</div>
-                      <div>Région : {selectedEtab.region}</div>
-                    </div>
-                  )}
-                </div>
+                <>
+                  {/* Étape 1 : Région */}
+                  <div>
+                    <label className="text-slate-400 text-xs mb-1.5 block flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-600/30 text-green-400 text-[10px] font-bold">1</span>
+                      Région
+                    </label>
+                    <select
+                      value={selectedEtabRegion}
+                      onChange={e => setSelectedEtabRegion(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
+                    >
+                      <option value="">— Toutes les régions —</option>
+                      {etabRegions.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                    {selectedEtabRegion && (
+                      <p className="text-slate-500 text-xs mt-1">
+                        {filteredEtabs.length} établissement{filteredEtabs.length > 1 ? 's' : ''} disponible{filteredEtabs.length > 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Séparateur */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-slate-700" />
+                    <ChevronDown className="w-3 h-3 text-slate-600" />
+                    <div className="flex-1 h-px bg-slate-700" />
+                  </div>
+
+                  {/* Étape 2 : Établissement */}
+                  <div>
+                    <label className="text-slate-400 text-xs mb-1.5 block flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-600/30 text-green-400 text-[10px] font-bold">2</span>
+                      Établissement
+                    </label>
+                    <select
+                      value={selectedEtab?.id}
+                      onChange={e => setSelectedEtab(etablissements.find(et => et.id === parseInt(e.target.value)))}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
+                    >
+                      {filteredEtabs.map(etab => (
+                        <option key={etab.id} value={etab.id}>{etab.nom}</option>
+                      ))}
+                    </select>
+                    {selectedEtab && (
+                      <div className="mt-2 p-2.5 bg-slate-700/40 rounded-lg text-xs text-slate-400 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Type</span>
+                          <span className="text-slate-300">{selectedEtab.type} · {selectedEtab.statut}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Effectifs</span>
+                          <span className="text-slate-300">{selectedEtab.effectifs_total} apprenants</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Département</span>
+                          <span className="text-slate-300">{selectedEtab.departement}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Remplissage</span>
+                          <span className={selectedEtab.taux_remplissage >= 85 ? 'text-green-400' : 'text-amber-400'}>
+                            {selectedEtab.taux_remplissage}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
+
+              {/* ── Régional : région → département ── */}
               {reportType === 'regional' && (
-                <div>
-                  <label className="text-slate-400 text-xs mb-1.5 block">Département</label>
-                  <select
-                    value={selectedDept}
-                    onChange={e => setSelectedDept(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
-                  >
-                    {Object.entries(indicateurs).map(([code, ind]) => (
-                      <option key={code} value={code}>{ind.nom} ({ind.region})</option>
-                    ))}
-                  </select>
-                  {indicateurs[selectedDept] && (
-                    <div className="mt-2 text-xs text-slate-500">Région : {indicateurs[selectedDept].region}</div>
-                  )}
-                </div>
+                <>
+                  {/* Étape 1 : Région */}
+                  <div>
+                    <label className="text-slate-400 text-xs mb-1.5 block flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600/30 text-blue-400 text-[10px] font-bold">1</span>
+                      Région
+                    </label>
+                    <select
+                      value={selectedDeptRegion}
+                      onChange={e => setSelectedDeptRegion(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
+                    >
+                      <option value="">— Toutes les régions —</option>
+                      {deptRegions.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                    {selectedDeptRegion && (
+                      <p className="text-slate-500 text-xs mt-1">
+                        {filteredDepts.length} département{filteredDepts.length > 1 ? 's' : ''} disponible{filteredDepts.length > 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Séparateur */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-slate-700" />
+                    <ChevronDown className="w-3 h-3 text-slate-600" />
+                    <div className="flex-1 h-px bg-slate-700" />
+                  </div>
+
+                  {/* Étape 2 : Département */}
+                  <div>
+                    <label className="text-slate-400 text-xs mb-1.5 block flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600/30 text-blue-400 text-[10px] font-bold">2</span>
+                      Département
+                    </label>
+                    <select
+                      value={selectedDept}
+                      onChange={e => setSelectedDept(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-green-500"
+                    >
+                      {filteredDepts.map(([code, ind]) => (
+                        <option key={code} value={code}>{ind.nom} ({code})</option>
+                      ))}
+                    </select>
+                    {indicateurs[selectedDept] && (
+                      <div className="mt-2 p-2.5 bg-slate-700/40 rounded-lg text-xs text-slate-400 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Région</span>
+                          <span className="text-slate-300">{indicateurs[selectedDept].region}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Population</span>
+                          <span className="text-slate-300">{indicateurs[selectedDept].population?.toLocaleString('fr-FR')} hab.</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Établissements</span>
+                          <span className="text-slate-300">
+                            {etablissements.filter(e => e.code_departement === selectedDept).length} établissement(s)
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Score vulnérabilité</span>
+                          <span className={indicateurs[selectedDept].score_vulnerabilite >= 7 ? 'text-red-400' : indicateurs[selectedDept].score_vulnerabilite >= 5 ? 'text-amber-400' : 'text-green-400'}>
+                            {indicateurs[selectedDept].score_vulnerabilite}/10
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -567,7 +728,11 @@ export default function RapportsPage() {
             </div>
 
             {allReports.length === 0 ? (
-              <div className="p-8 text-center text-slate-500 text-sm">Aucun rapport. Générez votre premier rapport IA !</div>
+              <div className="p-8 text-center">
+                <Sparkles className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 text-sm font-medium">Aucun rapport généré</p>
+                <p className="text-slate-600 text-xs mt-1">Sélectionnez un territoire et cliquez sur "Générer le rapport IA"</p>
+              </div>
             ) : (
               <div className="divide-y divide-slate-700/50">
                 {allReports.map(rapport => (
