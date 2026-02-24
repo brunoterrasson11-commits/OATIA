@@ -161,7 +161,7 @@ export default function DashboardPage() {
         <StatCard
           title="Formations recensées"
           value={statsGlobales.nb_formations_recensees.toString()}
-          sub="sur 20 départements"
+          sub={`sur ${statsGlobales.nb_departements_couverts} départements`}
           icon={TrendingUp} color="amber"
         />
       </div>
