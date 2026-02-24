@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { etablissements, indicateurs } from '@/lib/data';
+import { indicateurs } from '@/lib/data';
 
 // Fix Leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -74,9 +74,14 @@ function MapController({ center, zoom }) {
   return null;
 }
 
-export default function MapComponent({ selectedDept, onSelectEtablissement, indicateurActif = 'score_attractivite' }) {
+export default function MapComponent({
+  etablissements = [],
+  selectedEtab = null,
+  selectedDept,
+  onSelectEtablissement,
+  indicateurActif = 'score_attractivite',
+}) {
   const [geoData, setGeoData] = useState(null);
-  const [selectedEtab, setSelectedEtab] = useState(null);
 
   useEffect(() => {
     fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson')
@@ -162,7 +167,6 @@ export default function MapComponent({ selectedDept, onSelectEtablissement, indi
           icon={createCustomIcon(etab.type, selectedEtab?.id === etab.id)}
           eventHandlers={{
             click: () => {
-              setSelectedEtab(etab);
               if (onSelectEtablissement) onSelectEtablissement(etab);
             }
           }}

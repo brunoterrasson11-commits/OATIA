@@ -16,8 +16,10 @@ const indicateursOptions = [
 
 const typeColors = {
   EPLEFPA: 'bg-green-500/20 text-green-300 border border-green-500/30',
-  MFR: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-  CFPPA: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+  MFR:     'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+  CFPPA:   'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+  CNEAP:   'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30',
+  CFA:     'bg-sky-500/20 text-sky-300 border border-sky-500/30',
 };
 
 export default function CartePage() {
@@ -145,6 +147,8 @@ export default function CartePage() {
       {/* Map */}
       <div className="flex-1 relative">
         <MapComponent
+          etablissements={etabFiltres}
+          selectedEtab={selectedEtab}
           indicateurActif={indicateurActif}
           onSelectEtablissement={setSelectedEtab}
         />
