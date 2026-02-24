@@ -19,6 +19,7 @@ const typeColors = {
   CFPPA: '#f59e0b',
   CNEAP: '#e879f9',
   CFA:   '#38bdf8',
+  'Bachelor Agro': '#f97316',
 };
 
 const typeIcons = {
@@ -27,11 +28,24 @@ const typeIcons = {
   CFPPA: '📚',
   CNEAP: '✝️',
   CFA:   '🎓',
+  'Bachelor Agro': '🏅',
 };
 
-function createCustomIcon(type, selected = false) {
-  const color = typeColors[type] || '#94a3b8';
+const mentionColors = {
+  GAT:  '#22c55e',
+  EAMA: '#f97316',
+  AAD:  '#3b82f6',
+  ET:   '#a855f7',
+  STAF: '#ec4899',
+  SRNA: '#06b6d4',
+};
+
+function createCustomIcon(type, selected = false, isBachelor = false) {
+  const color = isBachelor ? '#f97316' : (typeColors[type] || '#94a3b8');
   const size = selected ? 44 : 36;
+  const ring = isBachelor
+    ? `box-shadow: 0 0 0 3px rgba(249,115,22,0.4), 0 3px 10px rgba(0,0,0,0.4);`
+    : `box-shadow: 0 3px 10px rgba(0,0,0,0.4);`;
   return L.divIcon({
     className: '',
     html: `<div style="
@@ -40,7 +54,7 @@ function createCustomIcon(type, selected = false) {
       border: 3px solid ${selected ? 'white' : 'rgba(255,255,255,0.3)'};
       border-radius: 50% 50% 50% 0;
       transform: rotate(-45deg);
-      box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+      ${ring}
       display: flex; align-items: center; justify-content: center;
     ">
     </div>`,
@@ -80,6 +94,7 @@ export default function MapComponent({
   selectedDept,
   onSelectEtablissement,
   indicateurActif = 'score_attractivite',
+  filtreType = 'Tous',
 }) {
   const [geoData, setGeoData] = useState(null);
 
@@ -160,45 +175,80 @@ export default function MapComponent({
         />
       )}
 
-      {etablissements.map(etab => (
-        <Marker
-          key={etab.id}
-          position={etab.coordonnees}
-          icon={createCustomIcon(etab.type, selectedEtab?.id === etab.id)}
-          eventHandlers={{
-            click: () => {
-              if (onSelectEtablissement) onSelectEtablissement(etab);
-            }
-          }}
-        >
-          <Popup maxWidth={280}>
-            <div style={{ color: '#e2e8f0', fontSize: '13px' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px', color: 'white' }}>
-                {typeIcons[etab.type]} {etab.nom}
+      {etablissements.map(etab => {
+        const isBachelor = filtreType === 'Bachelor Agro' || !!etab.bachelor_agro;
+        const displayType = isBachelor ? 'Bachelor Agro' : etab.type;
+        return (
+          <Marker
+            key={etab.id}
+            position={etab.coordonnees}
+            icon={createCustomIcon(etab.type, selectedEtab?.id === etab.id, filtreType === 'Bachelor Agro')}
+            eventHandlers={{
+              click: () => {
+                if (onSelectEtablissement) onSelectEtablissement(etab);
+              }
+            }}
+          >
+            <Popup maxWidth={300}>
+              <div style={{ color: '#e2e8f0', fontSize: '13px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px', color: 'white' }}>
+                  {typeIcons[displayType] || typeIcons[etab.type]} {etab.nom}
+                </div>
+                <div style={{ color: typeColors[displayType] || typeColors[etab.type], fontWeight: 600, fontSize: '11px', marginBottom: '8px' }}>
+                  {etab.type} · {etab.statut}
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>📍 {etab.departement}</div>
+                <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
+                <div style={{ fontSize: '12px' }}>
+                  <div>👥 <strong style={{ color: 'white' }}>{etab.effectifs_total}</strong> apprenants</div>
+                  <div style={{ marginTop: '3px' }}>📊 Remplissage : <strong style={{ color: '#22c55e' }}>{etab.taux_remplissage}%</strong></div>
+                  <div style={{ marginTop: '3px' }}>💼 Insertion : <strong style={{ color: '#3b82f6' }}>{etab.taux_insertion}%</strong></div>
+                </div>
+
+                {etab.bachelor_agro && (
+                  <>
+                    <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
+                    <div style={{ fontSize: '11px' }}>
+                      <div style={{
+                        background: 'rgba(249,115,22,0.15)',
+                        border: '1px solid rgba(249,115,22,0.4)',
+                        borderRadius: '6px',
+                        padding: '6px 8px',
+                      }}>
+                        <div style={{ color: '#fb923c', fontWeight: 700, fontSize: '11px', marginBottom: '3px' }}>
+                          🏅 Bachelor Agro — {etab.bachelor_agro.mention}
+                        </div>
+                        <div style={{ color: '#e2e8f0', fontSize: '10px' }}>{etab.bachelor_agro.mention_label}</div>
+                        <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '3px' }}>
+                          {etab.bachelor_agro.consortium_label
+                            ? `📎 ${etab.bachelor_agro.consortium_label}`
+                            : `📋 ${etab.bachelor_agro.code}`}
+                        </div>
+                        <div style={{
+                          color: etab.bachelor_agro.role === 'chef_file' ? '#4ade80' : '#94a3b8',
+                          fontSize: '10px', marginTop: '2px'
+                        }}>
+                          {etab.bachelor_agro.role === 'chef_file' ? '⭐ Chef de file' : '● Membre consortium'}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  <strong style={{ color: '#e2e8f0' }}>Formations :</strong>
+                  <ul style={{ marginTop: '4px', paddingLeft: '0', listStyle: 'none' }}>
+                    {etab.formations.map((f, i) => (
+                      <li key={i} style={{ marginTop: '2px' }}>• {f}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-              <div style={{ color: typeColors[etab.type], fontWeight: 600, fontSize: '11px', marginBottom: '8px' }}>
-                {etab.type} · {etab.statut}
-              </div>
-              <div style={{ color: '#94a3b8', fontSize: '11px' }}>📍 {etab.departement}</div>
-              <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
-              <div style={{ fontSize: '12px' }}>
-                <div>👥 <strong style={{ color: 'white' }}>{etab.effectifs_total}</strong> apprenants</div>
-                <div style={{ marginTop: '3px' }}>📊 Remplissage : <strong style={{ color: '#22c55e' }}>{etab.taux_remplissage}%</strong></div>
-                <div style={{ marginTop: '3px' }}>💼 Insertion : <strong style={{ color: '#3b82f6' }}>{etab.taux_insertion}%</strong></div>
-              </div>
-              <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                <strong style={{ color: '#e2e8f0' }}>Formations :</strong>
-                <ul style={{ marginTop: '4px', paddingLeft: '0', listStyle: 'none' }}>
-                  {etab.formations.map((f, i) => (
-                    <li key={i} style={{ marginTop: '2px' }}>• {f}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+            </Popup>
+          </Marker>
+        );
+      })}
     </MapContainer>
   );
 }

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { statsGlobales } from '@/lib/data';
 
-const sources = [
+const sourcesInitiales = [
   { nom: 'INSEE – Recensement Population', frequence: 'Annuelle', statut: 'ok', dernierMaj: '15/01/2026', indicateurs: 'Population, structure d\'âge, migrations' },
   { nom: 'Agreste – Statistiques agricoles', frequence: 'Annuelle', statut: 'ok', dernierMaj: '01/02/2026', indicateurs: 'SAU, exploitations, productions' },
   { nom: 'France Travail – Emploi', frequence: 'Trimestrielle', statut: 'ok', dernierMaj: '10/02/2026', indicateurs: 'Demandes emploi, métiers en tension' },
@@ -34,10 +34,34 @@ const statutStyle = {
 export default function AdministrationPage() {
   const [activeTab, setActiveTab] = useState('sources');
   const [refreshing, setRefreshing] = useState(null);
+  const [sources, setSources] = useState(sourcesInitiales);
+  const [lastRefreshAll, setLastRefreshAll] = useState(null);
 
+  // Rafraîchit une source individuelle : simule la reconnexion + met à jour le statut et la date
   function simulateRefresh(nom) {
     setRefreshing(nom);
-    setTimeout(() => setRefreshing(null), 2000);
+    setTimeout(() => {
+      const today = new Date().toLocaleDateString('fr-FR');
+      setSources(prev =>
+        prev.map(s =>
+          s.nom === nom
+            ? { ...s, statut: 'ok', dernierMaj: today }
+            : s
+        )
+      );
+      setRefreshing(null);
+    }, 2000);
+  }
+
+  // Rafraîchit toutes les sources en une fois
+  function refreshAll() {
+    setRefreshing('all');
+    setTimeout(() => {
+      const today = new Date().toLocaleDateString('fr-FR');
+      setSources(prev => prev.map(s => ({ ...s, statut: 'ok', dernierMaj: today })));
+      setLastRefreshAll(today);
+      setRefreshing(null);
+    }, 2500);
   }
 
   return (
@@ -108,8 +132,21 @@ export default function AdministrationPage() {
           </div>
 
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-700">
-              <h2 className="text-white font-semibold text-sm">Sources de données configurées</h2>
+            <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-white font-semibold text-sm">Sources de données configurées</h2>
+                {lastRefreshAll && (
+                  <p className="text-slate-500 text-xs mt-0.5">Dernier rafraîchissement global : {lastRefreshAll}</p>
+                )}
+              </div>
+              <button
+                onClick={refreshAll}
+                disabled={refreshing !== null}
+                className="flex items-center gap-2 px-3 py-1.5 bg-green-600/20 hover:bg-green-600/40 disabled:opacity-50 text-green-300 border border-green-500/30 rounded-lg text-xs font-medium transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing === 'all' ? 'animate-spin' : ''}`} />
+                {refreshing === 'all' ? 'Rafraîchissement...' : 'Rafraîchir tout'}
+              </button>
             </div>
             <div className="divide-y divide-slate-700/50">
               {sources.map(source => {
