@@ -260,6 +260,24 @@ export default function RapportsPage() {
     setError(null);
 
     try {
+      // ── Déterminer le code département concerné ──────────────────────────
+      const deptCode = reportType === 'etablissement'
+        ? selectedEtab?.code_departement
+        : reportType === 'regional'
+        ? selectedDept
+        : null;
+
+      // ── Fetch France Travail (non-bloquant si echec) ─────────────────────
+      let emploiData = null;
+      if (deptCode) {
+        try {
+          const ftRes = await fetch(`/api/france-travail?dept=${deptCode}`);
+          if (ftRes.ok) emploiData = await ftRes.json();
+        } catch (_) {
+          // données emploi optionnelles — on continue sans
+        }
+      }
+
       const response = await fetch('/api/diagnostic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -271,10 +289,11 @@ export default function RapportsPage() {
             region: reportType === 'etablissement' ? selectedEtab?.region
               : reportType === 'regional'           ? indicateurs[selectedDept]?.region
               : 'National',
-            code: selectedDept,
+            code: deptCode || selectedDept,
           },
-          indicateurs: indicateurs[selectedDept] || {},
+          indicateurs: indicateurs[deptCode || selectedDept] || {},
           type: 'diagnostic',
+          emploiData,   // données France Travail temps réel
         }),
       });
 

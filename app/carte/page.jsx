@@ -2,16 +2,48 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useMemo } from 'react';
-import { Layers, TrendingUp, Leaf, AlertTriangle, Award } from 'lucide-react';
+import { Layers, TrendingUp, Leaf, AlertTriangle, Award, ShoppingBag, Users } from 'lucide-react';
 import { etablissements, indicateurs } from '@/lib/data';
 
 const MapComponent = dynamic(() => import('@/components/MapComponent'), { ssr: false });
 
 const indicateursOptions = [
-  { key: 'score_attractivite', label: 'Score attractivité', icon: TrendingUp },
-  { key: 'indice_dynamisme', label: 'Dynamisme agricole', icon: Leaf },
-  { key: 'score_vulnerabilite', label: 'Vulnérabilité territoriale', icon: AlertTriangle },
-  { key: 'part_bio', label: 'Agriculture biologique', icon: Leaf },
+  {
+    key: 'score_attractivite',
+    label: 'Score attractivité',
+    icon: TrendingUp,
+    note: 'Enrichi avec Vente + SAPAT',
+  },
+  {
+    key: 'indice_dynamisme',
+    label: 'Dynamisme agricole',
+    icon: Leaf,
+  },
+  {
+    key: 'score_vulnerabilite',
+    label: 'Vulnérabilité territoriale',
+    icon: AlertTriangle,
+    note: 'Ajusté avec diversification filières',
+  },
+  {
+    key: 'part_bio',
+    label: 'Agriculture biologique',
+    icon: Leaf,
+  },
+  {
+    key: 'vente',
+    label: 'Filière Vente & Commerce',
+    icon: ShoppingBag,
+    note: 'Source : France Travail domaine D',
+    color: 'blue',
+  },
+  {
+    key: 'sapat',
+    label: 'Services aux personnes (SAPAT)',
+    icon: Users,
+    note: 'Source : France Travail domaine K',
+    color: 'purple',
+  },
 ];
 
 const typeColors = {
@@ -98,84 +130,90 @@ export default function CartePage() {
     <div className="flex h-screen overflow-hidden bg-slate-950">
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
-      <div className="w-80 flex-shrink-0 bg-slate-900 border-r border-slate-700/50 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-slate-700/50">
-          <h1 className="text-white font-bold text-lg">Carte Territoriale</h1>
-          <p className="text-slate-400 text-xs mt-1">Établissements & indicateurs</p>
-        </div>
+      <div className="w-72 flex-shrink-0 bg-slate-900 border-r border-slate-700/50 flex flex-col overflow-hidden">
 
-        {/* Couche indicateur */}
-        <div className="p-4 border-b border-slate-700/50">
-          <div className="flex items-center gap-2 mb-3">
-            <Layers className="w-4 h-4 text-slate-400" />
-            <span className="text-slate-300 text-sm font-medium">Couche indicateur</span>
-          </div>
-          <div className="space-y-1">
-            {indicateursOptions.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setIndicateurActif(opt.key)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  indicateurActif === opt.key
-                    ? 'bg-green-600/20 text-green-300 border border-green-600/30'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+        {/* Header ── compact */}
+        <div className="px-3 py-2.5 border-b border-slate-700/50 flex-shrink-0 flex items-center gap-2">
+          <Layers className="w-4 h-4 text-slate-400 flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-white font-bold text-sm leading-tight">Carte Territoriale</h1>
+            <p className="text-slate-500 text-[10px]">Établissements & indicateurs</p>
           </div>
         </div>
 
-        {/* Légende établissements */}
-        <div className="p-4 border-b border-slate-700/50">
-          <p className="text-slate-400 text-xs font-medium mb-2">Légende établissements</p>
-          {[
-            { type: 'EPLEFPA', label: 'EPLEFPA (public)', color: '#22c55e' },
-            { type: 'MFR', label: 'MFR (privé)', color: '#3b82f6' },
-            { type: 'CFPPA', label: 'CFPPA (public)', color: '#f59e0b' },
-            { type: 'CNEAP', label: 'CNEAP (privé catholique)', color: '#e879f9' },
-            { type: 'CFA', label: 'CFA (apprentissage)', color: '#38bdf8' },
-          ].map(({ type, label, color }) => (
-            <div key={type} className="flex items-center gap-2 mb-1">
-              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
-              <span className="text-slate-400 text-xs">{label}</span>
-            </div>
-          ))}
-          {/* Bachelor Agro legend entry */}
-          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700/50">
-            <span className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-orange-500/40" style={{ background: '#f97316' }} />
-            <span className="text-orange-300 text-xs font-medium">🏅 Bachelor Agro ({bachelorCount} établissements)</span>
+        {/* Couche indicateur ── grille 2 colonnes */}
+        <div className="px-3 py-2 border-b border-slate-700/50 flex-shrink-0">
+          <p className="text-slate-500 text-[10px] uppercase tracking-wide font-semibold mb-1.5">Couche indicateur</p>
+          <div className="grid grid-cols-2 gap-1">
+            {indicateursOptions.map(opt => {
+              const active = indicateurActif === opt.key;
+              const accentClass = opt.color === 'blue'
+                ? 'bg-blue-600/20 text-blue-300 border border-blue-600/30'
+                : opt.color === 'purple'
+                ? 'bg-purple-600/20 text-purple-300 border border-purple-600/30'
+                : 'bg-green-600/20 text-green-300 border border-green-600/30';
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setIndicateurActif(opt.key)}
+                  title={opt.note || opt.label}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] transition-colors text-left leading-tight ${
+                    active ? accentClass : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="w-3 h-3 flex-shrink-0" />
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-1.5 space-y-0.5 pl-5">
+          {/* Note de la couche active */}
+          {indicateursOptions.find(o => o.key === indicateurActif)?.note && (
+            <p className="text-slate-600 text-[10px] mt-1.5 px-0.5">
+              ℹ {indicateursOptions.find(o => o.key === indicateurActif).note}
+            </p>
+          )}
+        </div>
+
+        {/* Légende ── 2 colonnes compactes */}
+        <div className="px-3 py-2 border-b border-slate-700/50 flex-shrink-0">
+          <p className="text-slate-500 text-[10px] uppercase tracking-wide font-semibold mb-1.5">Légende</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
             {[
-              { code: 'GAT', label: 'Génie agronomique', color: '#22c55e' },
-              { code: 'EAMA', label: 'Entreprendre & manager', color: '#f97316' },
-              { code: 'AAD', label: 'Agroalimentaire durable', color: '#3b82f6' },
-            ].map(m => (
-              <div key={m.code} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: m.color }} />
-                <span className="text-slate-500 text-xs">{m.code} — {m.label}</span>
+              { label: 'EPLEFPA (public)',    color: '#22c55e' },
+              { label: 'MFR (privé)',          color: '#3b82f6' },
+              { label: 'CFPPA (public)',       color: '#f59e0b' },
+              { label: 'CNEAP (catholique)',   color: '#e879f9' },
+              { label: 'CFA (apprentissage)',  color: '#38bdf8' },
+            ].map(({ label, color }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                <span className="text-slate-400 text-[11px] truncate">{label}</span>
               </div>
             ))}
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-orange-500/40" style={{ background: '#f97316' }} />
+              <span className="text-orange-300 text-[11px]">🏅 Bachelor ({bachelorCount})</span>
+            </div>
           </div>
         </div>
 
-        {/* Filtre & recherche */}
-        <div className="p-4 border-b border-slate-700/50 space-y-3">
+        {/* Filtre & recherche ── compact */}
+        <div className="px-3 py-2 border-b border-slate-700/50 space-y-1.5 flex-shrink-0">
           <input
             type="text"
             placeholder="Rechercher un établissement..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm placeholder-slate-500 focus:outline-none focus:border-green-500"
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs placeholder-slate-500 focus:outline-none focus:border-green-500"
           />
           <div className="flex gap-1 flex-wrap">
             {['Tous', 'EPLEFPA', 'MFR', 'CFPPA', 'CNEAP', 'CFA'].map(type => (
               <button
                 key={type}
                 onClick={() => setFiltreType(type)}
-                className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
+                className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
                   filtreType === type
                     ? 'bg-green-600 text-white'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
@@ -184,10 +222,9 @@ export default function CartePage() {
                 {type}
               </button>
             ))}
-            {/* Bachelor Agro filter button */}
             <button
               onClick={() => setFiltreType('Bachelor Agro')}
-              className={`text-xs px-2.5 py-1 rounded-md transition-colors font-medium ${
+              className={`text-[11px] px-2 py-0.5 rounded transition-colors font-medium ${
                 filtreType === 'Bachelor Agro'
                   ? 'bg-orange-500 text-white'
                   : 'bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20'
@@ -197,14 +234,14 @@ export default function CartePage() {
             </button>
           </div>
           {filtreType === 'Bachelor Agro' && (
-            <div className="text-xs text-orange-400/80 bg-orange-500/10 rounded-lg px-2 py-1.5 border border-orange-500/20">
-              {etabFiltres.length} établissement{etabFiltres.length > 1 ? 's' : ''} accrédité{etabFiltres.length > 1 ? 's' : ''} Bachelor Agro
-            </div>
+            <p className="text-[11px] text-orange-400/80 bg-orange-500/10 rounded px-2 py-1 border border-orange-500/20">
+              {etabFiltres.length} établissement{etabFiltres.length > 1 ? 's' : ''} accrédité{etabFiltres.length > 1 ? 's' : ''}
+            </p>
           )}
         </div>
 
-        {/* Liste établissements */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {/* Liste établissements ── scrollable */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-0">
           {etabFiltres.map(etab => (
             <button
               key={etab.id}
@@ -215,23 +252,23 @@ export default function CartePage() {
                   : 'bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/60'
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-semibold truncate">{etab.nom}</p>
-                  <p className="text-slate-400 text-xs mt-0.5">{etab.departement}</p>
+                  <p className="text-white text-[11px] font-semibold truncate leading-tight">{etab.nom}</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5 truncate">{etab.departement}</p>
                 </div>
-                <div className="flex flex-col gap-1 items-end flex-shrink-0">
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${typeColors[etab.type]}`}>
+                <div className="flex flex-col gap-0.5 items-end flex-shrink-0">
+                  <span className={`text-[10px] px-1.5 py-0 rounded ${typeColors[etab.type]}`}>
                     {etab.type}
                   </span>
                   {etab.bachelor_agro && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                    <span className="text-[10px] px-1.5 py-0 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
                       🏅 {etab.bachelor_agro.mention}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="mt-2 flex gap-3 text-xs text-slate-500">
+              <div className="mt-1 flex gap-3 text-[10px] text-slate-500">
                 <span>👥 {etab.effectifs_total}</span>
                 <span>📊 {etab.taux_remplissage}%</span>
               </div>

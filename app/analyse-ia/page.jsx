@@ -72,6 +72,33 @@ export default function AnalyseIAPage() {
 
   const { reports: savedReports, saveReport, deleteReport, updateReport } = useReports();
 
+  // ── Données emploi France Travail (temps réel) ────────────────────────────
+  const [emploiData, setEmploiData]     = useState(null);
+  const [emploiLoading, setEmploiLoading] = useState(false);
+  const [emploiError, setEmploiError]   = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchEmploi() {
+      setEmploiLoading(true);
+      setEmploiError(null);
+      try {
+        const res = await fetch(`/api/france-travail?dept=${selectedDept}`);
+        const data = await res.json();
+        if (!cancelled) {
+          if (res.ok) setEmploiData(data);
+          else setEmploiError(data.error || 'Erreur France Travail');
+        }
+      } catch (e) {
+        if (!cancelled) setEmploiError(e.message);
+      } finally {
+        if (!cancelled) setEmploiLoading(false);
+      }
+    }
+    fetchEmploi();
+    return () => { cancelled = true; };
+  }, [selectedDept]);
+
   // ── Régions et départements filtrés ──────────────────────────────────────
   const regions = useMemo(() =>
     [...new Set(Object.values(indicateurs).map(i => i.region))].sort(), []);
@@ -120,6 +147,7 @@ export default function AnalyseIAPage() {
           territoire: { nom: territoire.nom, region: territoire.region, code: selectedDept },
           indicateurs: territoire,
           type: analysisType,
+          emploiData: emploiData || null,   // données France Travail temps réel
         }),
       });
 
@@ -343,6 +371,105 @@ export default function AnalyseIAPage() {
                     <Radar dataKey="A" stroke="#22c55e" fill="#22c55e" fillOpacity={0.25} strokeWidth={2} />
                   </RadarChart>
                 </ResponsiveContainer>
+
+                {/* ── Emploi France Travail (temps réel) ── */}
+                <div className="mt-1 border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-300 text-xs font-semibold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block" />
+                      Offres d'emploi — France Travail
+                    </span>
+                    {emploiLoading && <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />}
+                  </div>
+
+                  {emploiError && (
+                    <p className="text-red-400 text-xs">⚠ {emploiError}</p>
+                  )}
+
+                  {emploiData && !emploiLoading && (
+                    <>
+                      {/* ── 3 filières : Agriculture / Vente / SAPAT ── */}
+                      <div className="space-y-1">
+                        {[
+                          {
+                            emoji: '🌱', label: 'Agriculture',
+                            count: emploiData.offres_agriculture,
+                            pct: emploiData.part_agri_pct,
+                            color: 'text-green-400',
+                          },
+                          {
+                            emoji: '🛒', label: 'Vente & Commerce',
+                            count: emploiData.offres_vente ?? '—',
+                            pct: emploiData.part_vente_pct ?? null,
+                            color: 'text-blue-400',
+                          },
+                          {
+                            emoji: '🤝', label: 'SAPAT',
+                            count: emploiData.offres_sapat ?? '—',
+                            pct: emploiData.part_sapat_pct ?? null,
+                            color: 'text-purple-400',
+                          },
+                        ].map(({ emoji, label, count, pct, color }) => (
+                          <div key={label} className="flex items-center justify-between bg-slate-700/50 rounded px-2 py-1.5">
+                            <span className="text-slate-400 text-[11px]">{emoji} {label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold text-xs ${color}`}>
+                                {typeof count === 'number' ? count.toLocaleString('fr-FR') : count}
+                              </span>
+                              {pct !== null && pct !== undefined && (
+                                <span className="text-slate-600 text-[10px]">{pct}%</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Répartition contrats agriculture */}
+                      {emploiData.contrats && (
+                        <div>
+                          <p className="text-slate-600 text-[10px] uppercase tracking-wide mb-1">Contrats agriculture</p>
+                          <div className="flex gap-1 text-[10px]">
+                            {[
+                              { label: 'CDI', val: emploiData.contrats.cdi, color: 'text-green-400' },
+                              { label: 'CDD', val: emploiData.contrats.cdd, color: 'text-amber-400' },
+                              { label: 'Sais.', val: emploiData.contrats.saisonnier, color: 'text-purple-400' },
+                            ].map(({ label, val, color }) => (
+                              <div key={label} className="flex-1 bg-slate-700/60 rounded px-1.5 py-1 text-center">
+                                <span className={`font-semibold ${color}`}>{val}</span>
+                                <span className="text-slate-500 ml-1">{label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Top offres par filière */}
+                      {(emploiData.top_offres?.length > 0 || emploiData.top_offres_vente?.length > 0 || emploiData.top_offres_sapat?.length > 0) && (
+                        <div className="space-y-1.5 pt-0.5">
+                          {[
+                            { label: '🌱 Agriculture', offres: emploiData.top_offres?.slice(0, 2), color: 'text-green-400' },
+                            { label: '🛒 Vente', offres: emploiData.top_offres_vente?.slice(0, 2), color: 'text-blue-400' },
+                            { label: '🤝 SAPAT', offres: emploiData.top_offres_sapat?.slice(0, 2), color: 'text-purple-400' },
+                          ].filter(s => s.offres?.length > 0).map(({ label, offres, color }) => (
+                            <div key={label}>
+                              <p className={`text-[10px] font-semibold ${color} mb-0.5`}>{label}</p>
+                              {offres.map((o, i) => (
+                                <div key={o.id || i} className="text-[10px] text-slate-400 truncate leading-snug pl-2">
+                                  › {o.titre}
+                                  <span className="text-slate-600 ml-1">· {o.contrat}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-slate-700 text-[10px] text-right">
+                        Mis à jour {new Date(emploiData.fetched_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>

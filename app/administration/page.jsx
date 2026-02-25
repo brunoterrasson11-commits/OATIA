@@ -257,33 +257,41 @@ export default function AdministrationPage() {
             <h2 className="text-white font-semibold text-sm">Configuration API</h2>
             <div className="space-y-3">
               {[
-                { label: 'Claude API (Anthropic)', key: 'ANTHROPIC_API_KEY', statut: process.env.NEXT_PUBLIC_HAS_API_KEY ? 'ok' : 'non configuré' },
-                { label: 'INSEE Open Data', key: 'API publique', statut: 'ok' },
-                { label: 'API Découpage Administratif', key: 'API publique', statut: 'ok' },
-                { label: 'Géoportail IGN (WMS)', key: 'API publique', statut: 'ok' },
-              ].map(({ label, key, statut }) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-slate-700/50">
+                { label: 'Claude API (Anthropic)', key: 'ANTHROPIC_API_KEY', statut: process.env.NEXT_PUBLIC_HAS_API_KEY ? 'ok' : 'non configuré', desc: 'Analyse IA, génération de rapports' },
+                { label: 'France Travail API', key: 'FRANCE_TRAVAIL_CLIENT_ID', statut: 'ok', desc: 'Offres emploi agriculture, métiers en tension' },
+                { label: 'INSEE Open Data', key: 'API publique', statut: 'ok', desc: 'Population, statistiques territoriales' },
+                { label: 'API Découpage Administratif', key: 'API publique', statut: 'ok', desc: 'Communes, EPCI, départements, régions' },
+                { label: 'Géoportail IGN (WMS)', key: 'API publique', statut: 'ok', desc: 'Couches géographiques, limites admin.' },
+              ].map(({ label, key, statut, desc }) => (
+                <div key={label} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
                   <div>
-                    <span className="text-slate-300 text-sm">{label}</span>
+                    <span className="text-slate-300 text-sm font-medium">{label}</span>
                     <span className="text-slate-500 text-xs ml-2">{key}</span>
+                    {desc && <p className="text-slate-500 text-xs mt-0.5">{desc}</p>}
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded border ${
+                  <span className={`text-xs px-2 py-0.5 rounded border flex-shrink-0 ml-4 ${
                     statut === 'ok' ? 'bg-green-500/15 text-green-300 border-green-500/30' :
                     'bg-red-500/15 text-red-300 border-red-500/30'
                   }`}>
-                    {statut}
+                    {statut === 'ok' ? '✓ Configuré' : 'non configuré'}
                   </span>
                 </div>
               ))}
             </div>
 
             <div className="bg-slate-700/50 rounded-lg p-4 text-xs">
-              <p className="text-slate-400 font-semibold mb-2">Pour activer l'IA Claude :</p>
-              <code className="block bg-slate-900 rounded p-3 text-slate-300 space-y-1">
-                <span className="block text-green-400"># Créez le fichier .env.local :</span>
+              <p className="text-slate-400 font-semibold mb-2">Variables d'environnement (.env.local) :</p>
+              <code className="block bg-slate-900 rounded p-3 text-slate-300 space-y-1 leading-5">
+                <span className="block text-green-400"># IA Anthropic Claude</span>
                 <span className="block">ANTHROPIC_API_KEY=sk-ant-votre-cle-api</span>
+                <span className="block mt-2 text-green-400"># France Travail – Emploi &amp; Offres</span>
+                <span className="block">FRANCE_TRAVAIL_CLIENT_ID=PAR_xxx...</span>
+                <span className="block">FRANCE_TRAVAIL_CLIENT_SECRET=votre-secret</span>
               </code>
-              <p className="text-slate-500 mt-2">Obtenez votre clé sur console.anthropic.com</p>
+              <div className="flex gap-4 mt-2 text-slate-500">
+                <span>Claude : <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">console.anthropic.com</a></span>
+                <span>France Travail : <a href="https://francetravail.io" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">francetravail.io</a></span>
+              </div>
             </div>
           </div>
 

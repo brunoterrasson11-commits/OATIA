@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Map, GraduationCap, BrainCircuit, FileText, Settings, Leaf
+  LayoutDashboard, Map, GraduationCap, BrainCircuit, FileText, Settings, Leaf, BarChart2
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const navItems = [
   { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/carte', label: 'Carte territoriale', icon: Map },
+  { href: '/effectifs', label: 'Effectifs CNEAP', icon: BarChart2 },
   { href: '/formations', label: 'Offre de formation', icon: GraduationCap },
   { href: '/analyse-ia', label: 'Analyse IA', icon: BrainCircuit },
   { href: '/rapports', label: 'Rapports', icon: FileText },

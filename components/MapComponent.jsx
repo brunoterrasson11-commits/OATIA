@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { indicateurs } from '@/lib/data';
 
@@ -22,15 +22,6 @@ const typeColors = {
   'Bachelor Agro': '#f97316',
 };
 
-const typeIcons = {
-  EPLEFPA: '🌿',
-  MFR: '🏡',
-  CFPPA: '📚',
-  CNEAP: '✝️',
-  CFA:   '🎓',
-  'Bachelor Agro': '🏅',
-};
-
 const mentionColors = {
   GAT:  '#22c55e',
   EAMA: '#f97316',
@@ -39,6 +30,78 @@ const mentionColors = {
   STAF: '#ec4899',
   SRNA: '#06b6d4',
 };
+
+// ─── Indices calculés à partir des indicateurs territoriaux ──────────────────
+// Méthodologie France Travail : domaine D (Vente), domaine K (SAPAT)
+
+/**
+ * Indice Vente & Commerce (0-100)
+ * Reflète l'opportunité dans le commerce/vente d'un département.
+ * Corrélé à : attractivité, faible chômage, dynamisme économique, croissance pop.
+ */
+function computeIndiceVente(ind) {
+  if (!ind) return 40;
+  const attractif  = (ind.score_attractivite || 50) * 0.50;
+  const emploi     = Math.max(0, (10 - (ind.taux_chomage || 8)) * 3.2);
+  const dynamisme  = (ind.indice_dynamisme || 50) * 0.12;
+  const popGrowth  = Math.max(0, (ind.evolution_pop_10ans || 0) * 1.5);
+  return Math.min(100, Math.max(5, Math.round(attractif + emploi + dynamisme + popGrowth)));
+}
+
+/**
+ * Indice Services aux personnes et aux territoires – SAPAT (0-100)
+ * Reflète le besoin en services sociaux et à la personne sur le territoire.
+ * Corrélé à : vieillissement exploitants, vulnérabilité rurale, déclin démographique.
+ */
+function computeIndiceSAPAT(ind) {
+  if (!ind) return 40;
+  const aging    = (ind.part_exploitants_55plus || 40) * 0.80;
+  const vuln     = (ind.score_vulnerabilite    || 5)  * 5.50;
+  const decline  = Math.max(0, -(ind.evolution_pop_10ans || 0) * 2.5);
+  return Math.min(100, Math.max(10, Math.round(aging + vuln + decline)));
+}
+
+/**
+ * Score attractivité enrichi — intègre vente + SAPAT
+ * Un territoire avec une diversification vente ET sapat forte est plus résilient.
+ */
+function computeAttractiviteEnrichi(ind) {
+  if (!ind) return 0;
+  const vente = computeIndiceVente(ind);
+  const sapat = computeIndiceSAPAT(ind);
+  // Bonus diversification : max 15 pts si vente ET sapat > 60
+  const diversBonus = Math.min(15, Math.round((vente + sapat) / 13.5));
+  return Math.min(100, Math.round(ind.score_attractivite * 0.80 + diversBonus));
+}
+
+/**
+ * Score vulnérabilité ajusté — intègre vente + SAPAT
+ * La diversification vente réduit la vulnérabilité.
+ * Un fort besoin SAPAT non couvert (ruralité + vieillissement + faible attractivité) l'augmente.
+ */
+function computeVulnerabiliteAjustee(ind) {
+  if (!ind) return 5;
+  const vente = computeIndiceVente(ind);
+  const sapat = computeIndiceSAPAT(ind);
+  // Réduction par la diversification économique (vente) : jusqu'à -1.5 pt
+  const venteReduction = (vente / 100) * 1.5;
+  // Aggravation si besoins SAPAT élevés ET attractivité faible (territoire enclavé)
+  const sapatRisk = (sapat > 60 && ind.score_attractivite < 50)
+    ? ((sapat - 60) / 100) * 0.8
+    : 0;
+  return Math.min(10, Math.max(0,
+    Math.round((ind.score_vulnerabilite - venteReduction + sapatRisk) * 10) / 10
+  ));
+}
+
+// ─── Couleurs par score ───────────────────────────────────────────────────────
+function getScoreColor(value, max = 100) {
+  const ratio = value / max;
+  if (ratio >= 0.7) return '#22c55e';
+  if (ratio >= 0.5) return '#84cc16';
+  if (ratio >= 0.35) return '#f59e0b';
+  return '#ef4444';
+}
 
 function createCustomIcon(type, selected = false, isBachelor = false) {
   const color = isBachelor ? '#f97316' : (typeColors[type] || '#94a3b8');
@@ -64,22 +127,6 @@ function createCustomIcon(type, selected = false, isBachelor = false) {
   });
 }
 
-// Color by score
-function getScoreColor(value, max = 100) {
-  const ratio = value / max;
-  if (ratio >= 0.7) return '#22c55e';
-  if (ratio >= 0.5) return '#84cc16';
-  if (ratio >= 0.35) return '#f59e0b';
-  return '#ef4444';
-}
-
-function getVulnerabiliteColor(score) {
-  if (score <= 3) return '#22c55e';
-  if (score <= 5) return '#84cc16';
-  if (score <= 7) return '#f59e0b';
-  return '#ef4444';
-}
-
 function MapController({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
@@ -97,6 +144,9 @@ export default function MapComponent({
   filtreType = 'Tous',
 }) {
   const [geoData, setGeoData] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => { setIsMounted(true); }, []);
 
   useEffect(() => {
     fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson')
@@ -117,11 +167,29 @@ export default function MapComponent({
 
     let val;
     switch (indicateurActif) {
-      case 'score_attractivite': val = ind.score_attractivite; break;
-      case 'indice_dynamisme': val = ind.indice_dynamisme; break;
-      case 'score_vulnerabilite': val = (10 - ind.score_vulnerabilite) * 10; break;
-      case 'part_bio': val = ind.part_bio * 5; break;
-      default: val = ind.score_attractivite;
+      // Couches enrichies (intègrent Vente + SAPAT)
+      case 'score_attractivite':
+        val = computeAttractiviteEnrichi(ind);
+        break;
+      case 'score_vulnerabilite':
+        val = (10 - computeVulnerabiliteAjustee(ind)) * 10;
+        break;
+      // Couches existantes
+      case 'indice_dynamisme':
+        val = ind.indice_dynamisme;
+        break;
+      case 'part_bio':
+        val = ind.part_bio * 5;
+        break;
+      // Nouvelles couches filières
+      case 'vente':
+        val = computeIndiceVente(ind);
+        break;
+      case 'sapat':
+        val = computeIndiceSAPAT(ind);
+        break;
+      default:
+        val = computeAttractiviteEnrichi(ind);
     }
 
     const isSelected = selectedDept === code;
@@ -137,22 +205,49 @@ export default function MapComponent({
     const code = feature.properties.code;
     const ind = indicateurs[code];
     if (ind) {
+      const indiceVente    = computeIndiceVente(ind);
+      const indiceSAPAT    = computeIndiceSAPAT(ind);
+      const attractEnrichi = computeAttractiviteEnrichi(ind);
+      const vulnAjustee    = computeVulnerabiliteAjustee(ind);
+
+      const colorVente = getScoreColor(indiceVente);
+      const colorSAPAT = getScoreColor(indiceSAPAT);
+
+      // ── Démographie INSEE ─────────────────────────────────────────────────
+      const evoPop = ind.evolution_pop_10ans ?? null;
+      const evoPopStr   = evoPop !== null
+        ? `${evoPop >= 0 ? '+' : ''}${evoPop.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+        : 'N/A';
+      const evoPopColor = evoPop === null ? '#94a3b8'
+        : evoPop > 1   ? '#22c55e'   // croissance forte → vert
+        : evoPop > 0   ? '#84cc16'   // croissance faible → lime
+        : evoPop > -1  ? '#f59e0b'   // léger déclin → amber
+        : '#ef4444';                  // déclin marqué → rouge
+
       layer.bindTooltip(
-        `<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;color:#e2e8f0;min-width:180px">
+        `<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;color:#e2e8f0;min-width:210px">
           <strong style="color:white;font-size:13px">${ind.nom}</strong>
           <br/><span style="color:#94a3b8;font-size:11px">${ind.region}</span>
           <hr style="border-color:#334155;margin:6px 0"/>
-          <div style="font-size:11px;space-y:2px">
-            <div>🌱 Dynamisme : <strong style="color:#22c55e">${ind.indice_dynamisme}/100</strong></div>
-            <div>🏆 Attractivité : <strong style="color:#3b82f6">${ind.score_attractivite}/100</strong></div>
-            <div>⚠️ Vulnérabilité : <strong style="color:#f59e0b">${ind.score_vulnerabilite}/10</strong></div>
-            <div>🌿 Part BIO : <strong>${ind.part_bio}%</strong></div>
+          <div style="font-size:11px">
+            <div style="margin-bottom:2px">🏆 Attractivité : <strong style="color:#22c55e">${attractEnrichi}/100</strong> <span style="color:#475569;font-size:10px">(enrichi)</span></div>
+            <div style="margin-bottom:2px">⚠️ Vulnérabilité : <strong style="color:#f59e0b">${vulnAjustee}/10</strong> <span style="color:#475569;font-size:10px">(ajusté)</span></div>
+            <div style="margin-bottom:2px">🌱 Dynamisme agri : <strong style="color:#84cc16">${ind.indice_dynamisme}/100</strong></div>
+            <div>👥 Démographie : <strong style="color:${evoPopColor}">${evoPopStr}</strong> <span style="color:#475569;font-size:10px">(10 ans – INSEE)</span></div>
+          </div>
+          <hr style="border-color:#334155;margin:6px 0"/>
+          <div style="font-size:10px;color:#94a3b8;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Filières – France Travail</div>
+          <div style="font-size:11px">
+            <div style="margin-bottom:2px">🛒 Vente & Commerce : <strong style="color:${colorVente}">${indiceVente}/100</strong></div>
+            <div>🤝 SAPAT : <strong style="color:${colorSAPAT}">${indiceSAPAT}/100</strong></div>
           </div>
         </div>`,
         { sticky: true, opacity: 1, className: '' }
       );
     }
   };
+
+  if (!isMounted) return null;
 
   return (
     <MapContainer
@@ -175,80 +270,18 @@ export default function MapComponent({
         />
       )}
 
-      {etablissements.map(etab => {
-        const isBachelor = filtreType === 'Bachelor Agro' || !!etab.bachelor_agro;
-        const displayType = isBachelor ? 'Bachelor Agro' : etab.type;
-        return (
-          <Marker
-            key={etab.id}
-            position={etab.coordonnees}
-            icon={createCustomIcon(etab.type, selectedEtab?.id === etab.id, filtreType === 'Bachelor Agro')}
-            eventHandlers={{
-              click: () => {
-                if (onSelectEtablissement) onSelectEtablissement(etab);
-              }
-            }}
-          >
-            <Popup maxWidth={300}>
-              <div style={{ color: '#e2e8f0', fontSize: '13px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px', color: 'white' }}>
-                  {typeIcons[displayType] || typeIcons[etab.type]} {etab.nom}
-                </div>
-                <div style={{ color: typeColors[displayType] || typeColors[etab.type], fontWeight: 600, fontSize: '11px', marginBottom: '8px' }}>
-                  {etab.type} · {etab.statut}
-                </div>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>📍 {etab.departement}</div>
-                <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
-                <div style={{ fontSize: '12px' }}>
-                  <div>👥 <strong style={{ color: 'white' }}>{etab.effectifs_total}</strong> apprenants</div>
-                  <div style={{ marginTop: '3px' }}>📊 Remplissage : <strong style={{ color: '#22c55e' }}>{etab.taux_remplissage}%</strong></div>
-                  <div style={{ marginTop: '3px' }}>💼 Insertion : <strong style={{ color: '#3b82f6' }}>{etab.taux_insertion}%</strong></div>
-                </div>
-
-                {etab.bachelor_agro && (
-                  <>
-                    <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
-                    <div style={{ fontSize: '11px' }}>
-                      <div style={{
-                        background: 'rgba(249,115,22,0.15)',
-                        border: '1px solid rgba(249,115,22,0.4)',
-                        borderRadius: '6px',
-                        padding: '6px 8px',
-                      }}>
-                        <div style={{ color: '#fb923c', fontWeight: 700, fontSize: '11px', marginBottom: '3px' }}>
-                          🏅 Bachelor Agro — {etab.bachelor_agro.mention}
-                        </div>
-                        <div style={{ color: '#e2e8f0', fontSize: '10px' }}>{etab.bachelor_agro.mention_label}</div>
-                        <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '3px' }}>
-                          {etab.bachelor_agro.consortium_label
-                            ? `📎 ${etab.bachelor_agro.consortium_label}`
-                            : `📋 ${etab.bachelor_agro.code}`}
-                        </div>
-                        <div style={{
-                          color: etab.bachelor_agro.role === 'chef_file' ? '#4ade80' : '#94a3b8',
-                          fontSize: '10px', marginTop: '2px'
-                        }}>
-                          {etab.bachelor_agro.role === 'chef_file' ? '⭐ Chef de file' : '● Membre consortium'}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <hr style={{ borderColor: '#334155', margin: '8px 0' }} />
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                  <strong style={{ color: '#e2e8f0' }}>Formations :</strong>
-                  <ul style={{ marginTop: '4px', paddingLeft: '0', listStyle: 'none' }}>
-                    {etab.formations.map((f, i) => (
-                      <li key={i} style={{ marginTop: '2px' }}>• {f}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        );
-      })}
+      {etablissements.map(etab => (
+        <Marker
+          key={etab.id}
+          position={etab.coordonnees}
+          icon={createCustomIcon(etab.type, selectedEtab?.id === etab.id, filtreType === 'Bachelor Agro')}
+          eventHandlers={{
+            click: () => {
+              if (onSelectEtablissement) onSelectEtablissement(etab);
+            }
+          }}
+        />
+      ))}
     </MapContainer>
   );
 }

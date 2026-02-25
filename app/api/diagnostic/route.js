@@ -7,7 +7,7 @@ const client = new Anthropic({
 
 export async function POST(request) {
   try {
-    const { territoire, indicateurs, type = 'diagnostic' } = await request.json();
+    const { territoire, indicateurs, type = 'diagnostic', emploiData = null } = await request.json();
 
     if (!territoire || !indicateurs) {
       return Response.json({ error: 'Paramètres manquants' }, { status: 400 });
@@ -16,16 +16,16 @@ export async function POST(request) {
     let prompt;
     switch (type) {
       case 'recommandations':
-        prompt = buildRecommandationsPrompt(territoire, indicateurs);
+        prompt = buildRecommandationsPrompt(territoire, indicateurs, emploiData);
         break;
       case 'alertes':
-        prompt = buildAlertePrompt(territoire, indicateurs);
+        prompt = buildAlertePrompt(territoire, indicateurs, emploiData);
         break;
       case 'scenarios':
-        prompt = buildScenarioPrompt(territoire, indicateurs);
+        prompt = buildScenarioPrompt(territoire, indicateurs, emploiData);
         break;
       default:
-        prompt = buildDiagnosticPrompt(territoire, indicateurs);
+        prompt = buildDiagnosticPrompt(territoire, indicateurs, emploiData);
     }
 
     const message = await client.messages.create({
