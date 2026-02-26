@@ -68,6 +68,7 @@ jobs:
           name: nextjs-build
           path: .next/
           retention-days: 1
+          if-no-files-found: error
 
   # ────────────────────────────────────────────
   # JOB 3 – Deploy (Vercel) — uniquement sur main
