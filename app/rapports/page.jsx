@@ -232,14 +232,14 @@ export default function RapportsPage() {
     if (filteredEtabs.length > 0) {
       setSelectedEtab(filteredEtabs[0]);
     }
-  }, [selectedEtabRegion]);
+  }, [selectedEtabRegion, filteredEtabs]);
 
   // Réinitialiser la sélection de département quand la région change
   useEffect(() => {
     if (filteredDepts.length > 0) {
       setSelectedDept(filteredDepts[0][0]);
     }
-  }, [selectedDeptRegion]);
+  }, [selectedDeptRegion, filteredDepts]);
 
   // Liste unifiée (rapports IA en tête, puis manuels)
   const allReports = useMemo(() => {

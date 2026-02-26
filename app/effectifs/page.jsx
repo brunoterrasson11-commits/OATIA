@@ -281,7 +281,7 @@ export default function EffectifsPage() {
       }
       return row;
     });
-  }, [etabChartData.chartData, scenarioProj, sliderFormations, sliderVisibilite, sliderPartenariats]);
+  }, [etabChartData.chartData, scenarioProj, sliderFormations, sliderVisibilite, sliderPartenariats, sliderAlternance]);
 
   const etabAlerts = useMemo(() => {
     if (!selectedEtab) return [];

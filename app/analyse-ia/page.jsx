@@ -115,7 +115,7 @@ export default function AnalyseIAPage() {
       setSelectedDept(filteredDepts[0][0]);
       setResult(null);
     }
-  }, [selectedRegion]);
+  }, [selectedRegion, filteredDepts, selectedDept]);
 
   const territoire = indicateurs[selectedDept];
   const etabsDuDept = etablissements.filter(e => e.code_departement === selectedDept);
