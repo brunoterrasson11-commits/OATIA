@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { indicateurs, etablissements } from '@/lib/data';
 import { useReports } from '@/hooks/useReports';
+import { getFormations, getFormationsByNom } from '@/lib/formations';
+import { analyzeFormationTerritory, categorizeFormations } from '@/lib/formationAnalysis';
 
 // ─── Types de rapport ────────────────────────────────────────────────────────
 const reportTypes = [
@@ -267,7 +269,32 @@ export default function RapportsPage() {
         ? selectedDept
         : null;
 
-      // ── Fetch France Travail (non-bloquant si echec) ─────────────────────
+      // ── Extraire les formations réelles de l'établissement ───────────────
+      let formationsCtx = null;
+      if (reportType === 'etablissement' && selectedEtab) {
+        // 1) Lookup via commune extraite de l'adresse
+        const adresse = selectedEtab.adresse || '';
+        const communeMatch = adresse.match(/\d{5}\s+(.+)$/);
+        const commune = communeMatch ? communeMatch[1].trim() : null;
+        let realFormations = commune ? getFormations(commune) : null;
+        // 2) Fallback : recherche par nom d'établissement
+        if (!realFormations?.formations?.length && selectedEtab.nom) {
+          realFormations = getFormationsByNom(selectedEtab.nom);
+        }
+        // 3) Fallback final : formations du référentiel data.js
+        const formations = realFormations?.formations?.length
+          ? realFormations.formations
+          : (selectedEtab.formations || []);
+
+        if (formations.length) {
+          const ind = indicateurs[deptCode] || {};
+          const cats = categorizeFormations(formations);
+          const { alerts, suggestions } = analyzeFormationTerritory(formations, ind);
+          formationsCtx = { formations, cats, alerts, suggestions };
+        }
+      }
+
+      // ── Fetch France Travail en parallèle (non-bloquant si echec) ────────
       let emploiData = null;
       if (deptCode) {
         try {
@@ -293,7 +320,8 @@ export default function RapportsPage() {
           },
           indicateurs: indicateurs[deptCode || selectedDept] || {},
           type: 'diagnostic',
-          emploiData,   // données France Travail temps réel
+          emploiData,      // données France Travail temps réel
+          formationsCtx,   // formations réelles + analyse adéquation territoire
         }),
       });
 
