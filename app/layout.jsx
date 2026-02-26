@@ -2,7 +2,7 @@ import './globals.css';
 import Sidebar from '@/components/Sidebar';
 
 export const metadata = {
-  title: 'OATIA – Outil d\'Analyse Territoriale Intégrée pour l\'Enseignement Agricole',
+  title: 'THÉMIS – Outil d\'Analyse Territoriale Intégrée pour l\'Enseignement Agricole',
   description: 'Cartographie · Analyse de données · Intelligence Artificielle',
 };
 

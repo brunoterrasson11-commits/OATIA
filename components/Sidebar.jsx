@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Map, GraduationCap, BrainCircuit, FileText, Settings, Leaf, BarChart2
+  LayoutDashboard, Map, GraduationCap, BrainCircuit, FileText, Settings, BarChart2
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -23,12 +24,19 @@ export default function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-700/50 flex flex-col z-50 shadow-2xl">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-700/50">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-lg shadow-green-500/20">
-          <Leaf className="w-5 h-5 text-white" />
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-700/50">
+        <div className="w-12 h-10 rounded-lg bg-white flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden p-1">
+          <Image
+            src="/cneap-logo.png"
+            alt="Logo CNEAP"
+            width={44}
+            height={32}
+            className="object-contain w-full h-full"
+            priority
+          />
         </div>
         <div>
-          <div className="text-white font-bold text-lg leading-none">OATIA</div>
+          <div className="text-white font-bold text-lg leading-none">THÉMIS</div>
           <div className="text-slate-400 text-xs mt-0.5">Analyse Territoriale IA</div>
         </div>
       </div>
@@ -59,7 +67,7 @@ export default function Sidebar() {
       <div className="px-4 py-4 border-t border-slate-700/50">
         <div className="bg-slate-800/60 rounded-lg px-3 py-2.5">
           <div className="text-xs text-slate-400">Version 1.0 – Février 2026</div>
-          <div className="text-xs text-slate-500 mt-0.5">MASA / DGER</div>
+          <div className="text-xs text-slate-500 mt-0.5">Bruno TERRASSON – CNEAP</div>
         </div>
       </div>
     </aside>

@@ -299,12 +299,13 @@ export default function AdministrationPage() {
             <h2 className="text-white font-semibold text-sm mb-3">Informations système</h2>
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[
-                { l: 'Version OATIA', v: '1.0.0' },
+                { l: 'Version THÉMIS', v: '1.0.0' },
                 { l: 'Dernière mise à jour', v: statsGlobales.derniere_maj },
                 { l: 'Modèle IA', v: 'Claude Opus 4.6' },
                 { l: 'Référentiel territorial', v: 'INSEE 2024' },
                 { l: 'Framework', v: 'Next.js 14' },
-                { l: 'Référent', v: 'Bruno Terrasson – MASA/DGER' },
+                { l: 'Référent', v: 'Bruno TERRASSON – CNEAP' },
+                { l: 'Contact', v: 'bruno.terrasson@cneap.fr' },
               ].map(({ l, v }) => (
                 <div key={l} className="bg-slate-700/40 rounded-lg p-2.5">
                   <div className="text-slate-500">{l}</div>

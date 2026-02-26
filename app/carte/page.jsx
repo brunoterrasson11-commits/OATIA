@@ -2,8 +2,10 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useMemo } from 'react';
-import { Layers, TrendingUp, Leaf, AlertTriangle, Award, ShoppingBag, Users } from 'lucide-react';
+import { Layers, TrendingUp, Leaf, AlertTriangle, Award, ShoppingBag, Users, Briefcase } from 'lucide-react';
 import { etablissements, indicateurs } from '@/lib/data';
+import { getFormations, getFormationsByNom } from '@/lib/formations';
+import { analyzeFormationTerritory, categorizeFormations, FORMATION_CATEGORIES } from '@/lib/formationAnalysis';
 
 const MapComponent = dynamic(() => import('@/components/MapComponent'), { ssr: false });
 
@@ -436,24 +438,114 @@ export default function CartePage() {
               </div>
             )}
 
-            {/* Formations */}
-            <div className="mt-3 border-t border-slate-700 pt-3">
-              <p className="text-slate-400 text-xs font-medium mb-1.5">Formations dispensées</p>
-              <div className="space-y-1">
-                {selectedEtab.formations.map((f, i) => (
-                  <div
-                    key={i}
-                    className={`rounded px-2 py-1 text-xs ${
-                      f.startsWith('Bachelor Agro')
-                        ? 'bg-orange-500/15 text-orange-300 border border-orange-500/25'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    {f.startsWith('Bachelor Agro') ? '🏅 ' : '• '}{f}
+            {/* Formations + Analyse territoire */}
+            {(() => {
+              // 1) Try commune extracted from adresse (format: "..., 12345 COMMUNE")
+              const adresse = selectedEtab.adresse || '';
+              const communeMatch = adresse.match(/\d{5}\s+(.+)$/);
+              const commune = communeMatch ? communeMatch[1].trim() : null;
+              let realFormations = commune ? getFormations(commune) : null;
+              // 2) Fallback: try matching by establishment name
+              if (!realFormations?.formations?.length && selectedEtab.nom) {
+                realFormations = getFormationsByNom(selectedEtab.nom);
+              }
+              const formations = realFormations?.formations?.length
+                ? realFormations.formations
+                : selectedEtab.formations;
+              const source = realFormations?.formations?.length ? 'CNEAP' : 'référentiel';
+
+              // Formation-territory analysis (using dept indicators)
+              const formAnalysis = deptInfo && formations?.length
+                ? analyzeFormationTerritory(formations, deptInfo)
+                : null;
+              const cats = formations?.length ? categorizeFormations(formations) : [];
+
+              return (
+                <>
+                  {/* Formations list */}
+                  <div className="mt-3 border-t border-slate-700 pt-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-slate-400 text-xs font-medium">Formations dispensées</p>
+                      <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">
+                        {formations.length} · source {source}
+                      </span>
+                    </div>
+
+                    {/* Category chips */}
+                    {cats.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {cats.map(c => (
+                          <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/80 text-slate-400 border border-slate-600/50">
+                            {FORMATION_CATEGORIES[c].label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
+                      {formations.map((f, i) => {
+                        const isBachelor = f.startsWith('Bachelor Agro') || f.includes('Bachelor');
+                        const isBTS = /^BTSA?\s|^BTS\s/.test(f);
+                        return (
+                          <div
+                            key={i}
+                            className={`rounded px-2 py-1 text-xs ${
+                              isBachelor
+                                ? 'bg-orange-500/15 text-orange-300 border border-orange-500/25'
+                                : isBTS
+                                ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25'
+                                : 'bg-slate-800 text-slate-300'
+                            }`}
+                          >
+                            {isBachelor ? '🏅 ' : isBTS ? '🎓 ' : '• '}{f}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+
+                  {/* Formation–Territory analysis */}
+                  {formAnalysis && (formAnalysis.alerts.length > 0 || formAnalysis.suggestions.length > 0) && (
+                    <div className="mt-3 border-t border-slate-700 pt-3 space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <Briefcase className="w-3 h-3 text-slate-400" />
+                        <p className="text-slate-300 text-[11px] font-bold uppercase tracking-wide">Adéquation formations / territoire</p>
+                      </div>
+
+                      {formAnalysis.alerts.map((a, i) => (
+                        <div key={`alert-${i}`} className="bg-red-500/10 border border-red-500/25 rounded-lg px-2.5 py-2 text-[11px]">
+                          <div className="flex items-start gap-1.5 text-red-300 mb-0.5">
+                            <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                            <span className="font-medium leading-snug">{a.msg}</span>
+                          </div>
+                          {a.detail && <p className="text-red-400/60 text-[10px] ml-4.5 leading-snug">{a.detail}</p>}
+                          {a.source && <p className="text-slate-600 text-[10px] ml-4.5 mt-0.5">⬡ {a.source}</p>}
+                        </div>
+                      ))}
+
+                      {formAnalysis.suggestions.map((s, i) => (
+                        <div key={`sug-${i}`} className="bg-green-500/10 border border-green-500/25 rounded-lg px-2.5 py-2 text-[11px]">
+                          <div className="flex items-start gap-1.5 text-green-300 mb-0.5">
+                            <TrendingUp className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                            <span className="font-medium leading-snug">{s.msg}</span>
+                          </div>
+                          {s.detail && <p className="text-green-400/60 text-[10px] ml-4.5 leading-snug">{s.detail}</p>}
+                          {s.source && <p className="text-slate-600 text-[10px] ml-4.5 mt-0.5">⬡ {s.source}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* No issues */}
+                  {formAnalysis && formAnalysis.alerts.length === 0 && formAnalysis.suggestions.length === 0 && (
+                    <div className="mt-2 flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-2 text-[11px] text-green-400">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>Formations bien adaptées au territoire</span>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
