@@ -4,8 +4,43 @@ import dynamic from 'next/dynamic';
 import { useState, useMemo } from 'react';
 import { Layers, TrendingUp, Leaf, AlertTriangle, Award, ShoppingBag, Users, Briefcase } from 'lucide-react';
 import { etablissements, indicateurs } from '@/lib/data';
+import { effectifsData, getLastValue } from '@/lib/effectifs';
 import { getFormations, getFormationsByNom } from '@/lib/formations';
 import { analyzeFormationTerritory, categorizeFormations, FORMATION_CATEGORIES } from '@/lib/formationAnalysis';
+
+// ── Lookup effectif 2025 par commune (source : lib/effectifs.js) ─────────────
+function normCommune(s) {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bste\b/g, 'sainte')
+    .replace(/\bst\b/g, 'saint')
+    .replace(/[-\/\.\(\)]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const EFFECTIF_2025_MAP = {};
+effectifsData.forEach(e => {
+  EFFECTIF_2025_MAP[normCommune(e.commune)] = getLastValue(e.data);
+});
+
+function extractCommune(adresse) {
+  if (!adresse) return null;
+  // Cas 1 : "... 12345 COMMUNE ..."
+  const m = adresse.match(/\d{5}\s+(.+?)(\s*Cedex.*)?$/i);
+  if (m) return m[1].trim();
+  // Cas 2 : "rue ..., COMMUNE"
+  const parts = adresse.split(',');
+  return parts[parts.length - 1].trim();
+}
+
+/** Retourne l'effectif 2025 réel depuis effectifs.js, ou null si inconnu */
+function getEffectif2025(etab) {
+  if (etab.type !== 'CNEAP') return null;
+  const communeRaw = etab.commune || extractCommune(etab.adresse);
+  if (!communeRaw) return null;
+  return EFFECTIF_2025_MAP[normCommune(communeRaw)] ?? null;
+}
 
 const MapComponent = dynamic(() => import('@/components/MapComponent'), { ssr: false });
 
@@ -271,7 +306,7 @@ export default function CartePage() {
                 </div>
               </div>
               <div className="mt-1 flex gap-3 text-[10px] text-slate-500">
-                <span>👥 {etab.effectifs_total}</span>
+                <span>👥 {getEffectif2025(etab) ?? etab.effectifs_total}</span>
                 <span>📊 {etab.taux_remplissage}%</span>
               </div>
             </button>
@@ -323,18 +358,24 @@ export default function CartePage() {
             </div>
 
             {/* Stats */}
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {[
-                { label: 'Apprenants', value: selectedEtab.effectifs_total, unit: '' },
-                { label: 'Remplissage', value: selectedEtab.taux_remplissage, unit: '%' },
-                { label: 'Insertion', value: selectedEtab.taux_insertion, unit: '%' },
-              ].map(({ label, value, unit }) => (
-                <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
-                  <div className="text-green-400 font-bold text-base">{value}{unit}</div>
-                  <div className="text-slate-500 text-xs mt-0.5">{label}</div>
+            {(() => {
+              const eff2025 = getEffectif2025(selectedEtab);
+              const apprenants = eff2025 ?? selectedEtab.effectifs_total;
+              return (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[
+                    { label: eff2025 != null ? 'Apprenants 2025' : 'Apprenants', value: apprenants, unit: '' },
+                    { label: 'Remplissage', value: selectedEtab.taux_remplissage, unit: '%' },
+                    { label: 'Insertion', value: selectedEtab.taux_insertion, unit: '%' },
+                  ].map(({ label, value, unit }) => (
+                    <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
+                      <div className="text-green-400 font-bold text-base">{value}{unit}</div>
+                      <div className="text-slate-500 text-xs mt-0.5">{label}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             {/* Territoire */}
             {deptInfo && (
