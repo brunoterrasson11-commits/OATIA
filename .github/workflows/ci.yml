@@ -62,13 +62,6 @@ jobs:
           # Définie comme secret dans Settings > Secrets > Actions
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      - name: Upload build artefact (.next)
-        uses: actions/upload-artifact@v4
-        with:
-          name: nextjs-build
-          path: .next/
-          retention-days: 1
-          if-no-files-found: error
 
   # ────────────────────────────────────────────
   # JOB 3 – Deploy (Vercel) — uniquement sur main
