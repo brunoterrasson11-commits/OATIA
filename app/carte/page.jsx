@@ -481,12 +481,10 @@ export default function CartePage() {
 
             {/* Formations + Analyse territoire */}
             {(() => {
-              // 1) Try commune extracted from adresse (format: "..., 12345 COMMUNE")
-              const adresse = selectedEtab.adresse || '';
-              const communeMatch = adresse.match(/\d{5}\s+(.+)$/);
-              const commune = communeMatch ? communeMatch[1].trim() : null;
-              let realFormations = commune ? getFormations(commune) : null;
-              // 2) Fallback: try matching by establishment name
+              // 1) commune explicite → postal code regex → dernier segment après virgule
+              const communeForFormations = selectedEtab.commune || extractCommune(selectedEtab.adresse);
+              let realFormations = communeForFormations ? getFormations(communeForFormations) : null;
+              // 2) Fallback: recherche par nom d'établissement
               if (!realFormations?.formations?.length && selectedEtab.nom) {
                 realFormations = getFormationsByNom(selectedEtab.nom);
               }
