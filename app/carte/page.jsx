@@ -116,6 +116,55 @@ function concurrenceOverlap(km) {
   return Math.max(5, Math.min(95, Math.round(100 * Math.exp(-km / 200))));
 }
 
+// ── Concurrence formations CNEAP vs MFR ──────────────────────────────────────
+function extractDiploma(f) {
+  const s = (f || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/^btsa?\b/.test(s)) return 'BTSA';
+  if (/^bac\s*pro\b|^bacpro\b/.test(s)) return 'BAC PRO';
+  if (/^capa?\b/.test(s)) return 'CAPA';
+  if (/^bts\b/.test(s)) return 'BTS';
+  if (/^bp\b/.test(s)) return 'BP';
+  if (/^bprea\b/.test(s)) return 'BPREA';
+  if (/^mc\b/.test(s)) return 'MC';
+  if (/^cs\b/.test(s)) return 'CS';
+  if (/^bachelor/.test(s)) return 'Bachelor';
+  return null;
+}
+const STOP_MFR = new Set(['avec', 'dans', 'pour', 'les', 'des', 'une', 'sur', 'par', 'aux']);
+function kwMFR(f) {
+  return (f || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[-\/,\.]/g, ' ').split(/\s+/)
+    .filter(w => w.length >= 5 && !STOP_MFR.has(w));
+}
+function formationsConcurrentes(f1, f2) {
+  const d1 = extractDiploma(f1), d2 = extractDiploma(f2);
+  if (!d1 || d1 !== d2) return false;
+  const kw1 = kwMFR(f1), kw2 = kwMFR(f2);
+  return kw1.some(w => kw2.some(w2 => w2.includes(w) || w.includes(w2)));
+}
+function getMFRConcurrents(etab, allEtabs, formations) {
+  if (etab.type !== 'CNEAP' || !formations?.length) return null;
+  const result = allEtabs
+    .filter(e => e.type === 'MFR' && e.formations?.length &&
+      haversine(etab.lat, etab.lng, e.lat, e.lng) <= 80)
+    .map(mfr => {
+      const km = Math.round(haversine(etab.lat, etab.lng, mfr.lat, mfr.lng));
+      const pairs = [];
+      for (const f1 of formations) {
+        for (const f2 of mfr.formations) {
+          if (formationsConcurrentes(f1, f2) && !pairs.some(p => p.cneap === f1)) {
+            pairs.push({ cneap: f1, mfr: f2 });
+            break;
+          }
+        }
+      }
+      return { mfr, km, pairs };
+    })
+    .filter(r => r.pairs.length > 0)
+    .sort((a, b) => b.pairs.length - a.pairs.length || a.km - b.km);
+  return result.length ? result : null;
+}
+
 export default function CartePage() {
   const [indicateurActif, setIndicateurActif] = useState('score_attractivite');
   const [selectedEtab, setSelectedEtab] = useState(null);
@@ -670,6 +719,52 @@ export default function CartePage() {
                       <span>Formations bien adaptées au territoire</span>
                     </div>
                   )}
+
+                  {/* ── Concurrence MFR dans 80 km ── */}
+                  {selectedEtab.type === 'CNEAP' && (() => {
+                    const mfrConc = getMFRConcurrents(selectedEtab, etablissements, formations);
+                    const total = mfrConc ? mfrConc.reduce((s, r) => s + r.pairs.length, 0) : 0;
+                    const isHigh = mfrConc && (mfrConc.length >= 3 || total >= 5);
+                    return (
+                      <div className="mt-3 border-t border-slate-700 pt-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Users className="w-3 h-3 text-blue-400" />
+                          <p className="text-slate-300 text-[11px] font-bold uppercase tracking-wide">Concurrence MFR · 80 km</p>
+                        </div>
+                        {!mfrConc ? (
+                          <div className="bg-green-500/10 border border-green-500/25 rounded-lg px-2.5 py-2 text-xs text-green-400">
+                            ✓ Aucune MFR avec formations similaires dans un rayon de 80 km
+                          </div>
+                        ) : (
+                          <>
+                            <div className={`rounded-lg px-2.5 py-2 text-xs mb-2 ${isHigh
+                              ? 'bg-red-500/10 border border-red-500/25 text-red-400'
+                              : 'bg-amber-500/10 border border-amber-500/25 text-amber-400'}`}>
+                              ⚠️ {mfrConc.length} MFR · {total} formation{total > 1 ? 's' : ''} similaire{total > 1 ? 's' : ''}
+                              {isHigh ? ' — Risque élevé' : ' — Surveillance recommandée'}
+                            </div>
+                            <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                              {mfrConc.slice(0, 6).map(({ mfr, km, pairs }) => (
+                                <div key={mfr.id} className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-slate-200 text-[11px] font-semibold truncate max-w-[70%]">{mfr.nom}</span>
+                                    <span className="text-slate-500 text-[10px] flex-shrink-0 ml-1">{km} km</span>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {pairs.slice(0, 3).map((p, i) => (
+                                      <p key={i} className="text-[10px] text-amber-400/80 truncate">· {p.cneap}</p>
+                                    ))}
+                                    {pairs.length > 3 && <p className="text-[10px] text-slate-600">+{pairs.length - 3} autre{pairs.length - 3 > 1 ? 's' : ''}…</p>}
+                                  </div>
+                                </div>
+                              ))}
+                              {mfrConc.length > 6 && <p className="text-[10px] text-slate-600 text-center">+{mfrConc.length - 6} autres MFR</p>}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               );
             })()}
