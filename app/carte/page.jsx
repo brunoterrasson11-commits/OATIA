@@ -119,6 +119,8 @@ function concurrenceOverlap(km) {
 export default function CartePage() {
   const [indicateurActif, setIndicateurActif] = useState('score_attractivite');
   const [selectedEtab, setSelectedEtab] = useState(null);
+  const [selectedDept, setSelectedDept] = useState(null);
+  const [selectedDeptData, setSelectedDeptData] = useState(null);
   const [filtreType, setFiltreType] = useState('Tous');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -319,10 +321,96 @@ export default function CartePage() {
         <MapComponent
           etablissements={etabFiltres}
           selectedEtab={selectedEtab}
+          selectedDept={selectedDept}
           indicateurActif={indicateurActif}
-          onSelectEtablissement={setSelectedEtab}
+          onSelectEtablissement={(etab) => { setSelectedEtab(etab); setSelectedDept(null); setSelectedDeptData(null); }}
+          onSelectDept={(code, data) => { setSelectedDept(code); setSelectedDeptData(data); setSelectedEtab(null); }}
           filtreType={filtreType}
         />
+
+        {/* ── Selected department panel ─────────────────── */}
+        {selectedDeptData && !selectedEtab && (() => {
+          const d = selectedDeptData;
+          const evoPop = d.evolution_pop_10ans ?? null;
+          const evoPopStr = evoPop !== null
+            ? `${evoPop >= 0 ? '+' : ''}${evoPop.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+            : 'N/A';
+          const evoColor = evoPop === null ? 'text-slate-400'
+            : evoPop > 1 ? 'text-green-400'
+            : evoPop > 0 ? 'text-lime-400'
+            : evoPop > -1 ? 'text-amber-400'
+            : 'text-red-400';
+          const etabsDept = etablissements.filter(e => e.code_departement === selectedDept);
+          return (
+            <div className="absolute top-4 right-4 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-xl p-4 z-10 w-80 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-white font-bold text-sm leading-tight">{d.nom}</h3>
+                  <p className="text-slate-400 text-xs mt-0.5">{d.region}</p>
+                </div>
+                <button onClick={() => { setSelectedDept(null); setSelectedDeptData(null); }} className="text-slate-500 hover:text-white ml-2 text-lg leading-none flex-shrink-0">×</button>
+              </div>
+
+              {/* Indicateurs principaux */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {[
+                  { label: 'Attractivité', value: `${d.attractEnrichi}/100`, color: 'text-green-400', note: 'enrichi' },
+                  { label: 'Vulnérabilité', value: `${d.vulnAjustee}/10`, color: 'text-amber-400', note: 'ajusté' },
+                  { label: 'Dynamisme agri', value: `${d.indice_dynamisme}/100`, color: 'text-lime-400' },
+                  { label: 'Part BIO', value: `${d.part_bio}%`, color: 'text-emerald-400' },
+                ].map(({ label, value, color, note }) => (
+                  <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
+                    <div className={`font-bold text-base ${color}`}>{value}</div>
+                    <div className="text-slate-500 text-[10px] mt-0.5">{label}{note && <span className="text-slate-600"> ({note})</span>}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Démographie */}
+              <div className="bg-slate-800/60 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
+                <span className="text-slate-400 text-xs">👥 Évolution pop. 10 ans</span>
+                <span className={`font-bold text-sm ${evoColor}`}>{evoPopStr}</span>
+              </div>
+
+              {/* Filières France Travail */}
+              <div className="border-t border-slate-700 pt-3 mb-3">
+                <p className="text-slate-500 text-[10px] uppercase tracking-wide font-semibold mb-2">Filières – France Travail</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Vente & Commerce', value: `${d.indiceVente}/100`, color: 'text-blue-400' },
+                    { label: 'SAPAT', value: `${d.indiceSAPAT}/100`, color: 'text-purple-400' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
+                      <div className={`font-bold text-base ${color}`}>{value}</div>
+                      <div className="text-slate-500 text-[10px] mt-0.5">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Établissements dans le département */}
+              {etabsDept.length > 0 && (
+                <div className="border-t border-slate-700 pt-3">
+                  <p className="text-slate-400 text-xs font-medium mb-2">
+                    {etabsDept.length} établissement{etabsDept.length > 1 ? 's' : ''} dans ce département
+                  </p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {etabsDept.map(e => (
+                      <button
+                        key={e.id}
+                        onClick={() => { setSelectedEtab(e); setSelectedDept(null); setSelectedDeptData(null); }}
+                        className="w-full text-left flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-700/60 transition-colors"
+                      >
+                        <span className="text-slate-300 text-xs truncate">{e.nom}</span>
+                        <span className={`text-[10px] px-1.5 py-0 rounded flex-shrink-0 ml-2 ${typeColors[e.type]}`}>{e.type}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Scale legend overlay */}
         <div className="absolute bottom-8 right-4 bg-slate-900/90 backdrop-blur-sm border border-slate-700 rounded-xl p-3 z-10">

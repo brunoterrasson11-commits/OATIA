@@ -140,6 +140,7 @@ export default function MapComponent({
   selectedEtab = null,
   selectedDept,
   onSelectEtablissement,
+  onSelectDept,
   indicateurActif = 'score_attractivite',
   filtreType = 'Tous',
 }) {
@@ -204,47 +205,25 @@ export default function MapComponent({
   const onEachFeature = (feature, layer) => {
     const code = feature.properties.code;
     const ind = indicateurs[code];
-    if (ind) {
-      const indiceVente    = computeIndiceVente(ind);
-      const indiceSAPAT    = computeIndiceSAPAT(ind);
-      const attractEnrichi = computeAttractiviteEnrichi(ind);
-      const vulnAjustee    = computeVulnerabiliteAjustee(ind);
 
-      const colorVente = getScoreColor(indiceVente);
-      const colorSAPAT = getScoreColor(indiceSAPAT);
-
-      // ── Démographie INSEE ─────────────────────────────────────────────────
-      const evoPop = ind.evolution_pop_10ans ?? null;
-      const evoPopStr   = evoPop !== null
-        ? `${evoPop >= 0 ? '+' : ''}${evoPop.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
-        : 'N/A';
-      const evoPopColor = evoPop === null ? '#94a3b8'
-        : evoPop > 1   ? '#22c55e'   // croissance forte → vert
-        : evoPop > 0   ? '#84cc16'   // croissance faible → lime
-        : evoPop > -1  ? '#f59e0b'   // léger déclin → amber
-        : '#ef4444';                  // déclin marqué → rouge
-
-      layer.bindTooltip(
-        `<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;color:#e2e8f0;min-width:210px">
-          <strong style="color:white;font-size:13px">${ind.nom}</strong>
-          <br/><span style="color:#94a3b8;font-size:11px">${ind.region}</span>
-          <hr style="border-color:#334155;margin:6px 0"/>
-          <div style="font-size:11px">
-            <div style="margin-bottom:2px">🏆 Attractivité : <strong style="color:#22c55e">${attractEnrichi}/100</strong> <span style="color:#475569;font-size:10px">(enrichi)</span></div>
-            <div style="margin-bottom:2px">⚠️ Vulnérabilité : <strong style="color:#f59e0b">${vulnAjustee}/10</strong> <span style="color:#475569;font-size:10px">(ajusté)</span></div>
-            <div style="margin-bottom:2px">🌱 Dynamisme agri : <strong style="color:#84cc16">${ind.indice_dynamisme}/100</strong></div>
-            <div>👥 Démographie : <strong style="color:${evoPopColor}">${evoPopStr}</strong> <span style="color:#475569;font-size:10px">(10 ans – INSEE)</span></div>
-          </div>
-          <hr style="border-color:#334155;margin:6px 0"/>
-          <div style="font-size:10px;color:#94a3b8;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Filières – France Travail</div>
-          <div style="font-size:11px">
-            <div style="margin-bottom:2px">🛒 Vente & Commerce : <strong style="color:${colorVente}">${indiceVente}/100</strong></div>
-            <div>🤝 SAPAT : <strong style="color:${colorSAPAT}">${indiceSAPAT}/100</strong></div>
-          </div>
-        </div>`,
-        { sticky: true, opacity: 1, className: '' }
-      );
-    }
+    layer.on({
+      mouseover: (e) => {
+        e.target.setStyle({ weight: 2, color: '#94a3b8', fillOpacity: 0.85 });
+      },
+      mouseout: (e) => {
+        e.target.setStyle(styleFeature(feature));
+      },
+      click: () => {
+        if (!ind || !onSelectDept) return;
+        onSelectDept(code, {
+          ...ind,
+          attractEnrichi: computeAttractiviteEnrichi(ind),
+          vulnAjustee:    computeVulnerabiliteAjustee(ind),
+          indiceVente:    computeIndiceVente(ind),
+          indiceSAPAT:    computeIndiceSAPAT(ind),
+        });
+      },
+    });
   };
 
   if (!isMounted) return null;
