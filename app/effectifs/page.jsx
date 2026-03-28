@@ -290,8 +290,12 @@ export default function EffectifsPage() {
 
   const etabIndReg = useMemo(() => {
     if (!selectedEtab) return null;
+    if (etabFormations?.dept) {
+      const deptEntry = Object.values(indicateurs).find(d => d.nom === etabFormations.dept);
+      if (deptEntry) return deptEntry;
+    }
     return regionIndicateurs(selectedEtab.region);
-  }, [selectedEtab]);
+  }, [selectedEtab, etabFormations]);
 
   const etabPeak = useMemo(() => selectedEtab ? getPeak(selectedEtab.data) : null, [selectedEtab]);
 
@@ -918,7 +922,7 @@ export default function EffectifsPage() {
               <div className="border-t border-slate-700 pt-4">
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-3 flex items-center gap-1.5">
                   <Info className="w-3.5 h-3.5" />
-                  Contexte territorial — {selectedEtab.region}
+                  Contexte territorial — {etabFormations?.dept || selectedEtab.region}
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
                   {[
