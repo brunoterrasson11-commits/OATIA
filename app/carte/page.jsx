@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Layers, TrendingUp, Leaf, AlertTriangle, Award, ShoppingBag, Users, Briefcase } from 'lucide-react';
 import { etablissements, indicateurs } from '@/lib/data';
 import { effectifsData, getLastValue } from '@/lib/effectifs';
@@ -90,6 +90,7 @@ const typeColors = {
   CNEAP:   'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30',
   CFA:     'bg-sky-500/20 text-sky-300 border border-sky-500/30',
   'Bachelor Agro': 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+  UNREP: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
 };
 
 const MENTION_LABELS = {
@@ -214,6 +215,28 @@ export default function CartePage() {
   const bachelorCount = useMemo(() =>
     etablissements.filter(e => e.bachelor_agro).length, []);
 
+  // ── Live API data (Annuaire Éducation + Parcoursup + Géo) ──
+  const [liveData, setLiveData] = useState(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedEtab?.lat || !selectedEtab?.lng) { setLiveData(null); return; }
+    setLiveLoading(true);
+    setLiveData(null);
+    const dept = selectedEtab.code_departement || '';
+    Promise.all([
+      fetch(`/api/geo?mode=bassin&lat=${selectedEtab.lat}&lng=${selectedEtab.lng}&radius=30`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/annuaire-education?dept=${dept}&type=tous`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/parcoursup?dept=${dept}`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([geo, annuaire, parcoursup]) => {
+      setLiveData({ geo, annuaire, parcoursup });
+      setLiveLoading(false);
+    });
+  }, [selectedEtab?.id]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950">
 
@@ -274,6 +297,7 @@ export default function CartePage() {
               { label: 'CFPPA (public)',       color: '#f59e0b' },
               { label: 'CNEAP (catholique)',   color: '#e879f9' },
               { label: 'CFA (apprentissage)',  color: '#38bdf8' },
+              { label: 'UNREP (privé spé.)',   color: '#fb7185' },
             ].map(({ label, color }) => (
               <div key={label} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -297,7 +321,7 @@ export default function CartePage() {
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs placeholder-slate-500 focus:outline-none focus:border-green-500"
           />
           <div className="flex gap-1 flex-wrap">
-            {['Tous', 'EPLEFPA', 'MFR', 'CFPPA', 'CNEAP', 'CFA'].map(type => (
+            {['Tous', 'EPLEFPA', 'MFR', 'CFPPA', 'CNEAP', 'CFA', 'UNREP'].map(type => (
               <button
                 key={type}
                 onClick={() => setFiltreType(type)}
@@ -719,6 +743,77 @@ export default function CartePage() {
                       <span>Formations bien adaptées au territoire</span>
                     </div>
                   )}
+
+                  {/* ── Données live : Bassin · Annuaire · Parcoursup ── */}
+                  <div className="mt-3 border-t border-slate-700 pt-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Briefcase className="w-3 h-3 text-indigo-400" />
+                      <p className="text-slate-300 text-[11px] font-bold uppercase tracking-wide">Données territoire · temps réel</p>
+                    </div>
+
+                    {liveLoading && (
+                      <div className="text-slate-500 text-[11px] animate-pulse">Chargement…</div>
+                    )}
+
+                    {!liveLoading && liveData && (
+                      <div className="space-y-2">
+
+                        {/* Bassin de recrutement */}
+                        {liveData.geo && (
+                          <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-2">
+                            <p className="text-indigo-300 text-[10px] font-semibold uppercase tracking-wide mb-1">Bassin 30 km</p>
+                            <div className="grid grid-cols-3 gap-1 text-center">
+                              <div>
+                                <p className="text-white text-xs font-bold">{liveData.geo.nb_communes}</p>
+                                <p className="text-slate-500 text-[9px]">communes</p>
+                              </div>
+                              <div>
+                                <p className="text-white text-xs font-bold">{liveData.geo.population_totale?.toLocaleString('fr-FR')}</p>
+                                <p className="text-slate-500 text-[9px]">habitants</p>
+                              </div>
+                              <div>
+                                <p className="text-indigo-300 text-xs font-bold">~{liveData.geo.bassin_jeunes_estime?.toLocaleString('fr-FR')}</p>
+                                <p className="text-slate-500 text-[9px]">jeunes est.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Établissements Agriculture du département */}
+                        {liveData.annuaire && (
+                          <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-2">
+                            <p className="text-amber-300 text-[10px] font-semibold uppercase tracking-wide mb-1">Établissements Agriculture · dép.</p>
+                            <div className="flex gap-3 text-[11px]">
+                              <span className="text-slate-300">
+                                <span className="text-white font-semibold">{liveData.annuaire.stats?.par_statut?.['Privé'] || 0}</span> privés
+                              </span>
+                              <span className="text-slate-300">
+                                <span className="text-white font-semibold">{liveData.annuaire.stats?.par_statut?.['Public'] || 0}</span> publics
+                              </span>
+                              <span className="text-slate-500 text-[10px]">(total {liveData.annuaire.total})</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Top formations Parcoursup */}
+                        {liveData.parcoursup && liveData.parcoursup.top_attractivite?.length > 0 && (
+                          <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-2">
+                            <p className="text-green-300 text-[10px] font-semibold uppercase tracking-wide mb-1">Top formations Parcoursup · dép.</p>
+                            <div className="space-y-1 max-h-28 overflow-y-auto">
+                              {liveData.parcoursup.top_attractivite.slice(0, 5).map((f, i) => (
+                                <div key={i} className="flex items-center justify-between text-[10px]">
+                                  <span className="text-slate-300 truncate max-w-[70%]">{f.formation}</span>
+                                  <span className="text-green-400 flex-shrink-0 ml-1 font-mono">{f.ratio}x</span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-slate-600 text-[9px] mt-1">ratio voeux/capacité · {liveData.parcoursup.total_formations} formations totales</p>
+                          </div>
+                        )}
+
+                      </div>
+                    )}
+                  </div>
 
                   {/* ── Concurrence MFR dans 80 km ── */}
                   {selectedEtab.type === 'CNEAP' && (() => {

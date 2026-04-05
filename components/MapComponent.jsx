@@ -19,6 +19,7 @@ const typeColors = {
   CFPPA: '#f59e0b',
   CNEAP: '#e879f9',
   CFA:   '#38bdf8',
+  UNREP: '#fb7185',
   'Bachelor Agro': '#f97316',
 };
 
