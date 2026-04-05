@@ -20,6 +20,8 @@ const typeColors = {
   CNEAP: '#e879f9',
   CFA:   '#38bdf8',
   UNREP: '#fb7185',
+  'Privé non affilié': '#94a3b8',
+  Exploitation: '#84cc16',
   'Bachelor Agro': '#f97316',
 };
 

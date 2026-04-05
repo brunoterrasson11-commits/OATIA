@@ -91,6 +91,8 @@ const typeColors = {
   CFA:     'bg-sky-500/20 text-sky-300 border border-sky-500/30',
   'Bachelor Agro': 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
   UNREP: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
+  'Privé non affilié': 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
+  Exploitation: 'bg-lime-500/20 text-lime-300 border border-lime-500/30',
 };
 
 const MENTION_LABELS = {
@@ -298,6 +300,7 @@ export default function CartePage() {
               { label: 'CNEAP (catholique)',   color: '#e879f9' },
               { label: 'CFA (apprentissage)',  color: '#38bdf8' },
               { label: 'UNREP (privé spé.)',   color: '#fb7185' },
+              { label: 'Exploitation pédago.', color: '#84cc16' },
             ].map(({ label, color }) => (
               <div key={label} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -321,7 +324,7 @@ export default function CartePage() {
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs placeholder-slate-500 focus:outline-none focus:border-green-500"
           />
           <div className="flex gap-1 flex-wrap">
-            {['Tous', 'EPLEFPA', 'MFR', 'CFPPA', 'CNEAP', 'CFA', 'UNREP'].map(type => (
+            {['Tous', 'EPLEFPA', 'MFR', 'CFPPA', 'CNEAP', 'CFA', 'UNREP', 'Exploitation'].map(type => (
               <button
                 key={type}
                 onClick={() => setFiltreType(type)}
