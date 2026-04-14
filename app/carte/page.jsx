@@ -217,7 +217,7 @@ export default function CartePage() {
   const bachelorCount = useMemo(() =>
     etablissements.filter(e => e.bachelor_agro).length, []);
 
-  // ── Live API data (Annuaire Éducation + Parcoursup + Géo) ──
+  // ── Live API data ────────────────────────────────────────────
   const [liveData, setLiveData] = useState(null);
   const [liveLoading, setLiveLoading] = useState(false);
 
@@ -233,8 +233,12 @@ export default function CartePage() {
         .then(r => r.ok ? r.json() : null).catch(() => null),
       fetch(`/api/parcoursup?dept=${dept}`)
         .then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([geo, annuaire, parcoursup]) => {
-      setLiveData({ geo, annuaire, parcoursup });
+      fetch(`/api/ips?dept=${dept}`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/parcoursup-tendances`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([geo, annuaire, parcoursup, ips, tendances]) => {
+      setLiveData({ geo, annuaire, parcoursup, ips, tendances });
       setLiveLoading(false);
     });
   }, [selectedEtab?.id]);
@@ -811,6 +815,77 @@ export default function CartePage() {
                               ))}
                             </div>
                             <p className="text-slate-600 text-[9px] mt-1">ratio voeux/capacité · {liveData.parcoursup.total_formations} formations totales</p>
+                          </div>
+                        )}
+
+                        {/* ── IPS / Profil socio-économique ── */}
+                        {liveData.ips && !liveData.ips.error && (
+                          <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-2">
+                            <p className="text-purple-300 text-[10px] font-semibold uppercase tracking-wide mb-1.5">Profil social · territoire</p>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-slate-400 text-[11px]">IPS estimé</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-sm font-bold ${
+                                  liveData.ips.profil_color === 'green' ? 'text-green-400'
+                                  : liveData.ips.profil_color === 'red' ? 'text-red-400'
+                                  : 'text-amber-400'
+                                }`}>{liveData.ips.ips_estime}</span>
+                                <span className={`text-[10px] px-1.5 py-0 rounded border ${
+                                  liveData.ips.profil_color === 'green' ? 'bg-green-500/15 text-green-300 border-green-500/30'
+                                  : liveData.ips.profil_color === 'red' ? 'bg-red-500/15 text-red-300 border-red-500/30'
+                                  : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                }`}>{liveData.ips.profil}</span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 text-center text-[9px]">
+                              <div>
+                                <p className="text-white font-semibold">{liveData.ips.sources?.pct_bours_parcoursup ?? '—'}%</p>
+                                <p className="text-slate-500">boursiers sup.</p>
+                              </div>
+                              <div>
+                                <p className="text-orange-300 font-semibold">{liveData.ips.sources?.nb_rep_plus ?? 0}+{liveData.ips.sources?.nb_rep ?? 0}</p>
+                                <p className="text-slate-500">REP+/REP</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-300 font-semibold">{liveData.ips.etablissements?.total ?? '—'}</p>
+                                <p className="text-slate-500">établ. total</p>
+                              </div>
+                            </div>
+                            <p className="text-slate-600 text-[9px] mt-1">Réf. nationale collèges : {liveData.ips.reference_nationale} · proxy DEPP</p>
+                          </div>
+                        )}
+
+                        {/* ── Formations d'avenir (tendances nationales 2021–2025) ── */}
+                        {liveData.tendances && liveData.tendances.formations_avenir?.length > 0 && (
+                          <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg p-2">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <p className="text-teal-300 text-[10px] font-semibold uppercase tracking-wide">Formations d'avenir · national</p>
+                              <span className="text-slate-600 text-[9px]">2021→2025</span>
+                            </div>
+                            <div className="space-y-1 max-h-32 overflow-y-auto">
+                              {liveData.tendances.formations_avenir.slice(0, 6).map((f, i) => (
+                                <div key={i} className="flex items-center justify-between text-[10px]">
+                                  <span className="text-slate-300 truncate max-w-[72%] leading-tight">{f.nom}</span>
+                                  <span className="text-teal-400 flex-shrink-0 ml-1 font-mono font-bold">+{f.croissance_4ans}%</span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-slate-600 text-[9px] mt-1">croissance voeux · {liveData.tendances.total_formations_uniques} formations agri analysées</p>
+                          </div>
+                        )}
+
+                        {/* ── Formations en déclin ── */}
+                        {liveData.tendances && liveData.tendances.formations_risque?.length > 0 && (
+                          <div className="bg-slate-800/60 border border-red-900/20 rounded-lg p-2">
+                            <p className="text-red-400 text-[10px] font-semibold uppercase tracking-wide mb-1">Formations en déclin · national</p>
+                            <div className="space-y-1 max-h-24 overflow-y-auto">
+                              {liveData.tendances.formations_risque.slice(0, 4).map((f, i) => (
+                                <div key={i} className="flex items-center justify-between text-[10px]">
+                                  <span className="text-slate-400 truncate max-w-[72%] leading-tight">{f.nom}</span>
+                                  <span className="text-red-400 flex-shrink-0 ml-1 font-mono">{f.croissance_4ans}%</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
 
